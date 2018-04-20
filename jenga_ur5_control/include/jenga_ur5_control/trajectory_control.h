@@ -52,8 +52,10 @@
 #define PROBE           1
 #define RANGE_FINDER    2 
 
-#define GRIPPER_CLOSE_SHORT 0
-#define GRIPPER_CLOSE_LONG  1
+#define GRIPPER_OPEN_WIDE    0
+#define GRIPPER_OPEN_NARROW  1
+#define GRIPPER_CLOSE_WIDE   2
+#define GRIPPER_CLOSE_NARROW 3
 
 #define SHOULDER_PAN_JOINT  0
 #define SHOULDER_LIFT_JOINT 1
@@ -152,6 +154,7 @@ private:
   // Tool related
   bool tool_feedback_flag_; // Flag to indicate if there is a new message available
   int tool_feedback_code_;  // Feedback from the tool
+  void publishToolCommand(int command_code);
   bool blockUntilToolFeedback(int feedback_code); // Block until a feedback from the tool is received
   void feedbackCallback(const jenga_msgs::EndEffectorFeedback::ConstPtr& msg);
   void probeCallback(const jenga_msgs::Probe::ConstPtr& msg);

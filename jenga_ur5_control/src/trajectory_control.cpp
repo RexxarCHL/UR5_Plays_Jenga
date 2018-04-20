@@ -189,7 +189,7 @@ void TrajCtrl::jengaTargetCallback(const jenga_ur5_control::JengaTarget::ConstPt
   status = moveToActionPosition(GRIPPER, other_side, level, block);
 
   /* Grip the block and pull it out */
-  status = executeGrippingAction(GRIPPER_CLOSE_SHORT); // Gripping action will auto return to home position
+  status = executeGrippingAction(GRIPPER_CLOSE_NARROW); // Gripping action will auto return to home position
 
   /* Return to up position */
   status = moveToHomePosition(other_side);
@@ -956,14 +956,14 @@ actionlib::SimpleClientGoalState TrajCtrl::executeProbingAction()
  */
 actionlib::SimpleClientGoalState TrajCtrl::executeGrippingAction(int mode)
 {
-  ROS_INFO("Execting gripping action, close position: %s", (mode == GRIPPER_CLOSE_SHORT)? "SHORT" : "LONG");
+  ROS_INFO("Execting gripping action, close position: %s", (mode == GRIPPER_CLOSE_NARROW)? "SHORT" : "LONG");
 
   /* Get the gripper transform */
   tf::Transform tf_gripper = retrieveTransform("tool_gripper");
 
   /* Calculate target transformation */
   tf::Transform tf_target;
-  if (mode == GRIPPER_CLOSE_SHORT)
+  if (mode == GRIPPER_CLOSE_NARROW)
   {
     // Originally 75mm away from the block, but the block is pushed out 25mm
     // ===> Move in 50mm + 5mm pull out safty margin = 55mm
@@ -1019,7 +1019,11 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGrippingAction(int mode)
   executeTrajectoryGoal(goal); 
 
   /* Close gripper */
-  // TODO
+  // Prepare and send the command message
+  publishToolCommand(mode);
+  
+  // Wait until the gripper is closed
+  blockUntilToolFeedback(jenga_msgs::EndEffectorFeedback::ACK_GRIPPER_CLOSED);
 
   /* Move back to starting position */
   // Clear the trajectory
@@ -1225,7 +1229,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGripChangeAction()
   debugBreak();
 
   /* Pick up the block on the long side */
-  status = executeGrippingAction(GRIPPER_CLOSE_LONG);
+  status = executeGrippingAction(GRIPPER_CLOSE_WIDE);
   ROS_INFO("Gripping the block done, with status %s", status.toString().c_str() );
 
   return status;
@@ -1440,6 +1444,15 @@ void TrajCtrl::checkRobotInHomeConfig()
   }
 }
 
+void TrajCtrl::publishToolCommand(int command_code)
+{
+  ROS_INFO("Publishing command %d", command_code);
+  jenga_msgs::EndEffectorControl command_msg;
+  command_msg.header.stamp = ros::Time::now();
+  command_msg.command_code = (uint8_t) command_code;
+
+  tool_command_publisher_.publish(command_msg);
+}
 /**
  * Block until a feedback from the tool is received
  */
@@ -1551,7 +1564,7 @@ void TrajCtrl::debugTestFlow()
   debugBreak();
 
   /* Grip the block and pull it out */
-  status = executeGrippingAction(GRIPPER_CLOSE_SHORT); // Gripping action will auto return to home position
+  status = executeGrippingAction(GRIPPER_CLOSE_NARROW); // Gripping action will auto return to home position
 
   ROS_WARN("TEST 7");
   debugBreak();
