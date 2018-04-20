@@ -1,0 +1,20 @@
+<launch>
+  <!-- launch rviz environment for ur5 -->
+  <include file="$(find ur_gazebo)/launch/ur5_joint_limited.launch">
+    <arg name="gui" value="false"/>
+     <remap from="arm_controller/follow_joint_trajectory" to="follow_joint_trajectory" />
+  </include>
+
+  <param name="is_simulation" type="bool" value="true" />
+
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find jenga_ur5_control)/rviz/ur5.rviz"/>
+
+  <!-- launch kinematics service -->
+  <node name="ur_kinematics_server" pkg="jenga_ur5_control" type="ur_kinematics_server" respawn="true" output="screen" />
+
+  <!-- publish a dummy tower location, for testing -->
+  <node name="static_transform_publisher" pkg="tf" type="static_transform_publisher" respawn="true" output="screen" args="0.1 0.45 0 0 0 0 1 /base_link /ar_tower_location 100"/>
+
+  <!-- launch waypoints node -->
+  <node name="tf_waypoints" pkg="jenga_ur5_control" type="tf_waypoints" respawn="true" output="screen" />
+</launch>

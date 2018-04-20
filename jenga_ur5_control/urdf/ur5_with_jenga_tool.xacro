@@ -1,0 +1,98 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="https://ros.org/wiki/xacro" name="ur5_with_jenga_tool">
+  <!-- common stuff -->
+  <xacro:include filename="$(find ur_description)/urdf/common.gazebo.xacro" />
+
+  <!-- ur5 -->
+  <xacro:include filename="$(find ur_description)/urdf/ur5.urdf.xacro" />
+
+  <!-- arm -->
+  <xacro:ur5_robot prefix="" joint_limited="true"
+    shoulder_pan_lower_limit="${-pi}" shoulder_pan_upper_limit="${pi}"
+    shoulder_lift_lower_limit="${-pi}" shoulder_lift_upper_limit="${pi}"
+    elbow_joint_lower_limit="${-pi}" elbow_joint_upper_limit="${pi}"
+    wrist_1_lower_limit="${-pi}" wrist_1_upper_limit="${pi}"
+    wrist_2_lower_limit="${-pi}" wrist_2_upper_limit="${pi}"
+    wrist_3_lower_limit="${-pi}" wrist_3_upper_limit="${pi}"
+  />
+
+  <link name="world" />
+
+  <joint name="world_joint" type="fixed">
+    <parent link="world" />
+    <child link = "base_link" />
+    <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+  </joint>
+
+  <!-- tool -->
+  <link name="jenga_tool">
+    <visual>
+      <origin xyz="0 0 ${0.058/2}" rpy="0 0 0" />
+      <geometry>
+        <box size="0.085 0.0553 0.058" />
+      </geometry>
+    </visual>
+
+    <collision>
+      <origin xyz="0 0 ${0.058/2}" rpy="0 0 0" />
+      <geometry>
+        <box size="0.085 0.0553 0.058" />
+      </geometry>
+      <material name="red">
+        <color rgba="0.8 0 0 1" />
+      </material>
+    </collision>
+  </link>
+
+  <joint name="tool0_to_jenga_tool" type="fixed">
+    <axis xyz="0 0 0" />
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="tool0" />
+    <child link="jenga_tool" />
+  </joint>
+
+  <link name="tool_gripper" />
+
+  <link name="tool_probe">
+    <visual>
+      <origin xyz="0 0 ${-0.05/2}" rpy="0 0 0" />
+      <geometry>
+        <cylinder radius="0.003" length="0.05" />
+      </geometry>
+    </visual>
+
+    <collision>
+      <origin xyz="0 0 ${-0.05/2}" rpy="0 0 0" />
+      <geometry>
+        <cylinder radius="0.003" length="0.05" />
+      </geometry>
+      <material name="blue">
+        <color rgba="0 0 0.8 1" />
+      </material>
+    </collision>
+  </link>
+
+  <link name="tool_range_finder" />
+
+  <joint name="jenga_tool_to_gripper" type="fixed">
+    <axis xyz="0 0 0" />
+    <origin xyz="0 0 0.072646" rpy="0 0 0" />
+    <parent link="jenga_tool" />
+    <child link="tool_gripper" />
+  </joint>
+
+  <joint name="jenga_tool_to_probe" type="fixed">
+    <axis xyz="0 0 0" />
+    <origin xyz="0.0795 0 0.026146" rpy="0 ${pi/2} 0" />
+    <parent link="jenga_tool" />
+    <child link="tool_probe" />
+  </joint>
+
+  <joint name="jenga_tool_to_range_finder" type="fixed">
+    <axis xyz="0 0 0" />
+    <origin xyz="0 -0.02942 0.059234" rpy="0 0 0" />
+    <parent link="jenga_tool" />
+    <child link="tool_range_finder" />
+  </joint>
+
+</robot>

@@ -1,0 +1,32 @@
+<launch>
+  <!-- bring up ur5 --> 
+  <arg name="robot_ip" value="172.22.22.2"/>
+  <arg name="limited" default="false"/>
+  <arg name="min_payload"  default="0.0"/>
+  <arg name="max_payload"  default="5.0"/>
+  <arg name="prefix" default="" />
+
+  <!-- robot model -->
+  <param unless="$(arg limited)" name="robot_description" command="$(find xacro)/xacro --inorder '$(find jenga_ur5_control)/urdf/ur5_with_jenga_tool.xacro'" />
+  
+  <!-- ur common -->
+  <include file="$(find ur_modern_driver)/launch/ur_common.launch">
+    <arg name="prefix"  value="$(arg prefix)" />
+    <arg name="robot_ip" value="$(arg robot_ip)"/>
+    <arg name="min_payload"  value="$(arg min_payload)"/>
+    <arg name="max_payload"  value="$(arg max_payload)"/>
+  </include>
+
+  <param name="is_simulation" type="bool" value="false" />
+
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find jenga_ur5_control)/rviz/ur5.rviz"/>
+
+  <!-- launch kinematics service -->
+  <node name="ur_kinematics_server" pkg="jenga_ur5_control" type="ur_kinematics_server" respawn="true" output="screen" />
+
+  <!-- publish a dummy tower location, for testing -->
+  <node name="static_transform_publisher" pkg="tf" type="static_transform_publisher" respawn="true" output="screen" args="0.1 0.45 0 0 0 0 1 /base_link /ar_tower_location 100"/>
+
+  <!-- launch waypoints node -->
+  <node name="tf_waypoints" pkg="jenga_ur5_control" type="tf_waypoints" respawn="true" output="screen" />
+</launch>

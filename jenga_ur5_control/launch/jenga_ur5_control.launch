@@ -1,0 +1,36 @@
+<launch>
+  <!-- FROM ur_gazebo/launch/ur5.launch -->
+  <arg name="limited" default="false"/>
+  <arg name="paused" default="false"/>
+  <arg name="gui" default="false"/>
+  
+  <!-- startup simulated world -->
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" default="worlds/empty.world"/>
+    <arg name="paused" value="$(arg paused)"/>
+    <arg name="gui" value="$(arg gui)"/>
+  </include>
+
+  <!-- send robot urdf to param server -->
+  <param unless="$(arg limited)" name="robot_description" command="$(find xacro)/xacro --inorder '$(find jenga_ur5_control)/urdf/ur5_with_jenga_tool.xacro'" />
+
+  <!-- push robot_description to factory and spawn robot in gazebo -->
+  <node name="spawn_gazebo_model" pkg="gazebo_ros" type="spawn_model" args="-urdf -param robot_description -model robot -z 0.1" respawn="false" output="screen" />
+
+  <include file="$(find ur_gazebo)/launch/controller_utils.launch"/>
+
+  <rosparam file="$(find ur_gazebo)/controller/arm_controller_ur5.yaml" command="load"/>
+  <node name="arm_controller_spawner" pkg="controller_manager" type="controller_manager" args="spawn arm_controller" respawn="false" output="screen"/>
+
+  <!-- launch rviz environment for ur5 -->
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find jenga_ur5_control)/rviz/ur5.rviz"/>
+
+  <!-- launch kinematics service -->
+  <node name="ur_kinematics_server" pkg="jenga_ur5_control" type="ur_kinematics_server" respawn="true" output="screen" />
+
+  <!-- publish a dummy tower location, for testing -->
+  <node name="static_transform_publisher" pkg="tf" type="static_transform_publisher" respawn="true" output="screen" args="0.1 0.45 0 0 0 0 1 /base_link /ar_tower_location 100"/>
+
+  <!-- launch waypoints node -->
+  <node name="tf_waypoints" pkg="jenga_ur5_control" type="tf_waypoints" respawn="true" output="screen" />
+</launch>
