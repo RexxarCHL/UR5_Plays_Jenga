@@ -139,7 +139,7 @@ private:
   actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction>* action_client_;
   
   sensor_msgs::JointState joint_state_;
-  jenga_msgs::EndEffectorControl tool_command_;
+  //jenga_msgs::EndEffectorControl tool_command_;
 
   // Game state
   int current_level_; // The current top level count
