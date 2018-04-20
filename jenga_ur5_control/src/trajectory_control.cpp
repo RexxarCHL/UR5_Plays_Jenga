@@ -41,6 +41,23 @@ void TrajCtrl::initializeSubscriber()
       nh_.subscribe<jenga_ur5_control::JengaTarget>("/jenga_target", 1, &TrajCtrl::jengaTargetCallback, this);
   joint_state_subscriber_ = 
       nh_.subscribe<sensor_msgs::JointState>("/joint_states", 10, &TrajCtrl::jointStateCallback, this);
+
+  // Tool related
+  tool_feedback_subscriber_ = 
+      nh_.subscribe<jenga_msgs::EndEffectorFeedback>("/tool/feedback", 1, &TrajCtrl::feedbackCallback, this);
+  tool_range_subscriber_ =
+      nh_.subscribe<sensor_msgs::Range>("/tool/range", 10, &TrajCtrl::rangeCallback, this);
+  tool_probe_subscriber_ = 
+      nh_.subscribe<jenga_msgs::Probe>("/tool/probe", 3, &TrajCtrl::probeCallback, this);
+}
+/**
+ * Initialize publisher
+ */
+void TrajCtrl::initializePublisher()
+{
+  ROS_INFO("Initializing publishers");
+
+  tool_command_publisher_ = nh_.advertise<jenga_msgs::EndEffectorControl>("/tool/command", 3);
 }
 
 /**
@@ -1421,6 +1438,46 @@ void TrajCtrl::checkRobotInHomeConfig()
       break;
     }
   }
+}
+
+/**
+ * Block until a feedback from the tool is received
+ */
+bool TrajCtrl::blockUntilToolFeedback(int expected_feedback_code)
+{
+  ROS_INFO("Waiting for feedback %d from the tool...", expected_feedback_code);
+  // Spin until flag is raised. Will wait forever
+  // Flag is raised when feedbackCallback is called by the subscriber
+  while (!tool_feedback_flag_)
+  {
+    ros::spinOnce(); // Process callbacks
+    ROS_INFO_DELAYED_THROTTLE(30, "Still waiting...");
+  }
+
+  // Read feedback code and reset flag
+  int received_feedback_code = tool_feedback_code_;
+  tool_feedback_flag_ = false;
+
+  ROS_INFO("Received %d", received_feedback_code);
+
+  return (received_feedback_code == expected_feedback_code);
+}
+void TrajCtrl::feedbackCallback(const jenga_msgs::EndEffectorFeedback::ConstPtr& msg)
+{
+  if (tool_feedback_flag_)
+    ROS_WARN("Feedback received but flag is true! Overwriting feedback code.");
+  
+  tool_feedback_code_ = msg->feedback_code;
+  tool_feedback_flag_ = true; // Raise flag to signal the receptance of a feedback from tool
+}
+void TrajCtrl::probeCallback(const jenga_msgs::Probe::ConstPtr& msg)
+{
+  float force = msg->data;
+  // TODO
+}
+void TrajCtrl::rangeCallback(const sensor_msgs::Range::ConstPtr& msg)
+{
+  // TODO
 }
 
 void TrajCtrl::debugPrintJoints(TrajCtrl::Configuration joints)

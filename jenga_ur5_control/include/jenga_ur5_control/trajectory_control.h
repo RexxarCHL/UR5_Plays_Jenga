@@ -17,6 +17,10 @@
 #include <trajectory_msgs/JointTrajectory.h>
 #include <trajectory_msgs/JointTrajectoryPoint.h>
 #include <sensor_msgs/JointState.h>
+#include <sensor_msgs/Range.h>
+#include <jenga_msgs/EndEffectorControl.h>
+#include <jenga_msgs/EndEffectorFeedback.h>
+#include <jenga_msgs/Probe.h>
 
 #include "jenga_ur5_control/Ur5InverseKinematics.h"
 #include "jenga_ur5_control/JengaTarget.h"
@@ -119,6 +123,10 @@ private:
   const Configuration HOME_CONFIG_ {0, -M_PI/2, 0, -M_PI/2, 0, 0};
 
   ros::NodeHandle nh_;
+  ros::Publisher tool_command_publisher_;
+  ros::Subscriber tool_feedback_subscriber_;
+  ros::Subscriber tool_range_subscriber_;
+  ros::Subscriber tool_probe_subscriber_;
   ros::Subscriber jenga_target_subscriber_;
   ros::Subscriber joint_state_subscriber_;
   ros::ServiceClient inverse_kinemaitcs_client_;
@@ -129,6 +137,7 @@ private:
   actionlib::SimpleActionClient<control_msgs::FollowJointTrajectoryAction>* action_client_;
   
   sensor_msgs::JointState joint_state_;
+  jenga_msgs::EndEffectorControl tool_command_;
 
   // Game state
   int current_level_; // The current top level count
@@ -140,8 +149,18 @@ private:
   bool is_busy_;
   bool is_probing_;
 
+  // Tool related
+  bool tool_feedback_flag_; // Flag to indicate if there is a new message available
+  int tool_feedback_code_;  // Feedback from the tool
+  bool blockUntilToolFeedback(int feedback_code); // Block until a feedback from the tool is received
+  void feedbackCallback(const jenga_msgs::EndEffectorFeedback::ConstPtr& msg);
+  void probeCallback(const jenga_msgs::Probe::ConstPtr& msg);
+  void rangeCallback(const sensor_msgs::Range::ConstPtr& msg);
+
   // Initialize subscribers and link their callbacks 
   void initializeSubscriber();
+  // Initialize publisher
+  void initializePublisher();
   // Initialize connection to action server on follow_joint_trajectory
   void initializeActionClient();
   // Initialize inverse kinematics service client
