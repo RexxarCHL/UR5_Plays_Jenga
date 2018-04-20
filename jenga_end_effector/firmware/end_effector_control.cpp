@@ -37,10 +37,10 @@ ros::NodeHandle nh;
 sensor_msgs::Range range_msg;
 jenga_msgs::Probe probe_msg;
 jenga_msgs::EndEffectorFeedback feedback_msg;
-ros::Publisher range_publisher("range", &range_msg);
-ros::Publisher probe_publisher("probe", &probe_msg);
-ros::Publisher feedback_publisher("tool_feedback", &feedback_msg);
-ros::Subscriber<jenga_msgs::EndEffectorControl> command_subscriber("tool_command", commandCallback);
+ros::Publisher range_publisher("/tool/range", &range_msg);
+ros::Publisher probe_publisher("/tool/probe", &probe_msg);
+ros::Publisher feedback_publisher("/tool/feedback", &feedback_msg);
+ros::Subscriber<jenga_msgs::EndEffectorControl> command_subscriber("/tool/command", commandCallback);
 
 bool probe_on, range_on;
 
