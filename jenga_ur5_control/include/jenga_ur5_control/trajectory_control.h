@@ -153,6 +153,8 @@ private:
 
   bool is_busy_;
   bool is_probing_;
+  bool is_range_finding_;
+  std::vector<std::pair<tf::Transform, float>> range_finder_data_;
 
   // Tool related
   bool tool_feedback_flag_; // Flag to indicate if there is a new message available

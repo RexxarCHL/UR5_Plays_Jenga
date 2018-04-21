@@ -22,6 +22,7 @@ TrajCtrl::TrajCtrl(ros::NodeHandle* nh): nh_(*nh)
 
   is_busy_ = false;
   is_probing_ = false;
+  is_range_finding_ = false;
 
   initializeSubscriber();
   initializeServiceClient();
@@ -1163,15 +1164,38 @@ actionlib::SimpleClientGoalState TrajCtrl::executeRangeFindingAction()
     debugPrintJoints(trajectory.points[i].positions);
   }
 
-  /* Signal start collecting data */
-  // TODO
+  /* Signal the tool to start sending range finder message */
+  // Prepare and send the command message
+  publishToolCommand(jenga_msgs::EndEffectorControl::RANGE_ON);
+  
+  // Wait until the tool says range finder is on
+  bool feedback_result = blockUntilToolFeedback(jenga_msgs::EndEffectorFeedback::ACK_RANGE_ON);
+  ROS_INFO("[executeGrippingAction] Tool feedback: %d", feedback_result);
 
   /* Send the trajectory */
   control_msgs::FollowJointTrajectoryGoal goal;
   goal.trajectory = trajectory;
-  actionlib::SimpleClientGoalState status = executeTrajectoryGoal(goal);
+  executeTrajectoryGoalNonblocking(goal);
 
-  ROS_INFO("Range finding action done, with status %s", status.toString().c_str() );
+  /* Let callbacks process until the action is done */
+  is_range_finding_ = true; // Enable callback function for /tool/range to do its job
+  while (!action_client_->getState().isDone())
+    ros::spinOnce(); // Check and execute callbacks
+  is_range_finding_ = false; // Let callback function for /tool/range return immediately
+
+
+  /* Signal the tool to stop sending range finder message */
+  // Prepare and send the command message
+  publishToolCommand(jenga_msgs::EndEffectorControl::RANGE_OFF);
+  
+  // Wait until the tool says range finder is off
+  feedback_result = blockUntilToolFeedback(jenga_msgs::EndEffectorFeedback::ACK_RANGE_OFF);
+  ROS_INFO("[executeGrippingAction] Tool feedback: %d", feedback_result);
+
+  /* Return action result */
+  actionlib::SimpleClientGoalState status = action_client_->getState();
+
+  ROS_INFO("[executeRangeFindingAction] Range finding action done, with status %s", status.toString().c_str() );
   return status;
 }
 /* 1. Move from current position (assumed at home) to drop location
@@ -1541,7 +1565,31 @@ void TrajCtrl::probeCallback(const jenga_msgs::Probe::ConstPtr& msg)
 }
 void TrajCtrl::rangeCallback(const sensor_msgs::Range::ConstPtr& msg)
 {
-  // TODO
+  if (!is_range_finding_)
+    return;
+
+  // DEBUG check for dropped message
+  int sequence_id = msg->header.seq;
+  ROS_INFO("Processing rangeCallback for %d", sequence_id);
+
+  float range = msg->range;
+  // Check if the range is in proper range. Pun intended.
+  if (range > msg->max_range || range < msg->min_range)
+  {
+    ROS_WARN("values < range_min or > range_max");
+    return;
+  }
+
+  // Record the current tf and range data as a pair, for later analysis
+  // TODO: this can be a little late?
+  tf::StampedTransform tf_stamped;
+  tf_listener_.lookupTransform("base_link", "tool_range_finder", ros::Time(), tf_stamped);
+  tf::Transform tf_range_finder(tf_stamped.getBasis(), tf_stamped.getOrigin());
+  std::pair<tf::Transform, float> current_data(
+      tf::Transform( tf_stamped.getBasis(), tf_stamped.getOrigin() ), range );
+
+  // Store the pair for later analysis
+  range_finder_data_.push_back(current_data);
 }
 
 void TrajCtrl::debugPrintJoints(TrajCtrl::Configuration joints)
