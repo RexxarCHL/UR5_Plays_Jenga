@@ -693,6 +693,16 @@ actionlib::SimpleClientGoalState TrajCtrl::executeTrajectoryGoal(
 }
 
 /**
+ * Send the trajectory to action server. Does not block for completion.
+ */
+void TrajCtrl::executeTrajectoryGoalNonblocking(control_msgs::FollowJointTrajectoryGoal trajectory_goal)
+{
+  ROS_INFO("Sending goal to action server");
+
+  action_client_->sendGoal(trajectory_goal);
+}
+
+/**
  * Generate a trajectory goal object that drive the arm from current position to input target_transform.
  */
 control_msgs::FollowJointTrajectoryGoal TrajCtrl::generateTrajectory(int side, tf::Transform tf_target)
@@ -704,7 +714,7 @@ control_msgs::FollowJointTrajectoryGoal TrajCtrl::generateTrajectory(int side, t
   std::string frame_name_side("roadmap_side" + std::to_string(side) );
 
   tf::Transform tf_above, tf_side;
-  tf_above = compensateEELinkToTool0( retrieveTransform(frame_name_above) );
+  tf_above = compensateEELinkToGripper( retrieveTransform(frame_name_above) );
   tf_side = compensateEELinkToTool0( retrieveTransform(frame_name_side) );
 
   // DEBUG: show the frames
@@ -808,7 +818,7 @@ control_msgs::FollowJointTrajectoryGoal TrajCtrl::generateHomingTrajectory(int s
   std::string frame_name_side("roadmap_side" + std::to_string(side) );
 
   tf::Transform tf_above, tf_side;
-  tf_above = compensateEELinkToTool0( retrieveTransform(frame_name_above) );
+  tf_above = compensateEELinkToGripper( retrieveTransform(frame_name_above) );
   tf_side = compensateEELinkToTool0( retrieveTransform(frame_name_side) );
 
   // DEBUG: show the frames
@@ -872,6 +882,8 @@ control_msgs::FollowJointTrajectoryGoal TrajCtrl::generateHomingTrajectory(int s
  *******************************************************************/
 /**
  * Move in and push 25mm
+ * NOTE: The return state represents the result of the probing action, 
+ *       SUCCEED means success and ABORTED means failed
  */
 actionlib::SimpleClientGoalState TrajCtrl::executeProbingAction()
 {
@@ -919,12 +931,34 @@ actionlib::SimpleClientGoalState TrajCtrl::executeProbingAction()
   ROS_INFO("[executeProbingAction] Point 2:");
   debugPrintJoints(joints_target.positions);
 
+  /* Signal tool to turn on the probe */
+  publishToolCommand(jenga_msgs::EndEffectorControl::PROBE_ON);
+  
+  // Wait until the probe is on
+  bool feedback_result = blockUntilToolFeedback(jenga_msgs::EndEffectorFeedback::ACK_PROBE_ON);
+  ROS_INFO("[executeProbingAction] Tool feedback: %d", feedback_result);
+
   /* Send the trajectory */
   control_msgs::FollowJointTrajectoryGoal goal;
   goal.trajectory = trajectory;
-  executeTrajectoryGoal(goal); 
+  executeTrajectoryGoalNonblocking(goal); 
   // It actually does not matter if probing is successful or not. We always want the probe to return to starting config
   // The subroutine that signals success or fail is responsible of letting others know the result.
+
+  /* Let the callback monitor the probe topic for force readings */
+  is_probing_ = true; // Enable callback function for /tool/probe to do its job
+  while (!action_client_->getState().isDone())
+    ros::spinOnce(); // Check and execute callbacks
+  is_probing_ = false; // Let callback function for /tool/probe return immediately
+  // Register the result of probing action
+  actionlib::SimpleClientGoalState status = action_client_->getState();
+
+  /* Signal tool to turn off the probe */
+  publishToolCommand(jenga_msgs::EndEffectorControl::PROBE_OFF);
+  
+  // Wait until the probe is off
+  feedback_result = blockUntilToolFeedback(jenga_msgs::EndEffectorFeedback::ACK_PROBE_OFF);
+  ROS_INFO("[executeProbingAction] Tool feedback: %d", feedback_result);
 
   /* Move back to starting position */
   // Clear the trajectory
@@ -945,7 +979,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeProbingAction()
 
   /* Send the trajectory */
   goal.trajectory = trajectory;
-  actionlib::SimpleClientGoalState status = executeTrajectoryGoal(goal);
+  executeTrajectoryGoal(goal);
 
   ROS_INFO("Probing action done, with status %s", status.toString().c_str() );
   return status;
@@ -1023,7 +1057,8 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGrippingAction(int mode)
   publishToolCommand(mode);
   
   // Wait until the gripper is closed
-  blockUntilToolFeedback(jenga_msgs::EndEffectorFeedback::ACK_GRIPPER_CLOSED);
+  bool feedback_result = blockUntilToolFeedback(jenga_msgs::EndEffectorFeedback::ACK_GRIPPER_CLOSED);
+  ROS_INFO("[executeGrippingAction] Tool feedback: %d", feedback_result);
 
   /* Move back to starting position */
   // Clear the trajectory
@@ -1198,13 +1233,17 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGripChangeAction()
   control_msgs::FollowJointTrajectoryGoal goal;
   goal.trajectory = trajectory;
   actionlib::SimpleClientGoalState status = executeTrajectoryGoal(goal);
-  ROS_INFO("Moving to drop position done, with status %s", status.toString().c_str() );
+  ROS_INFO("[executeGripChangeAction] Moving to drop position done, with status %s", status.toString().c_str() );
 
   debugBreak();
 
   /* Open gripper to drop the block */
-  // TODO
-  ROS_INFO("OPENING GRIPPER");
+  ROS_INFO("[executeGripChangeAction] Opening gripper");
+  publishToolCommand(GRIPPER_OPEN_WIDE);
+  
+  // Wait until the gripper is closed
+  bool feedback_result = blockUntilToolFeedback(jenga_msgs::EndEffectorFeedback::ACK_GRIPPER_OPENED);
+  ROS_INFO("[executeGripChangeAction] Tool feedback: %d", feedback_result);
 
   /* Move to the position above the dropped block */
   // Reset the trajectory points
@@ -1224,13 +1263,14 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGripChangeAction()
   // Send the trajectory
   goal.trajectory = trajectory; 
   status = executeTrajectoryGoal(goal);
-  ROS_INFO("Moving to position above the block done, with status %s", status.toString().c_str() );
+  ROS_INFO("[executeGripChangeAction] Moving to position above the block block done, with status %s", 
+      status.toString().c_str() );
 
   debugBreak();
 
   /* Pick up the block on the long side */
   status = executeGrippingAction(GRIPPER_CLOSE_WIDE);
-  ROS_INFO("Gripping the block done, with status %s", status.toString().c_str() );
+  ROS_INFO("[executeGripChangeAction] Gripping the block done, with status %s", status.toString().c_str() );
 
   return status;
 }
@@ -1289,7 +1329,12 @@ actionlib::SimpleClientGoalState TrajCtrl::executePlaceBlockAction()
   executeTrajectoryGoal(goal); 
 
   /* Open gripper */
-  // TODO
+  ROS_INFO("[executePlaceBlockAction] Opening gripper");
+  publishToolCommand(GRIPPER_OPEN_WIDE);
+  
+  // Wait until the gripper is closed
+  bool feedback_result = blockUntilToolFeedback(jenga_msgs::EndEffectorFeedback::ACK_GRIPPER_OPENED);
+  ROS_INFO("[executePlaceBlockAction] Tool feedback: %d", feedback_result);
 
   /* Move back to starting position */
   // Clear the trajectory
@@ -1483,10 +1528,16 @@ void TrajCtrl::feedbackCallback(const jenga_msgs::EndEffectorFeedback::ConstPtr&
   tool_feedback_code_ = msg->feedback_code;
   tool_feedback_flag_ = true; // Raise flag to signal the receptance of a feedback from tool
 }
+// Cancel the goal if force is more than PROBE_FORCE_THRESHOLD_
 void TrajCtrl::probeCallback(const jenga_msgs::Probe::ConstPtr& msg)
 {
+  if (!is_probing_)
+    return;
+
   float force = msg->data;
-  // TODO
+
+  if (force > PROBE_FORCE_THRESHOLD_)
+    action_client_->cancelGoal();
 }
 void TrajCtrl::rangeCallback(const sensor_msgs::Range::ConstPtr& msg)
 {

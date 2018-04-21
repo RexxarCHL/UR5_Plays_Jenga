@@ -109,6 +109,8 @@ public:
 
   /**
    * Execute a specific action >>>from current configuration<<<.
+   * NOTE: executeProbingAction returns the result of the probing action
+   *       Success = SUCCEED, Fail = ABORTED
    *
    * Return: Action status code. (See: http://docs.ros.org/jade/api/actionlib_msgs/html/msg/GoalStatus.html)
    */
@@ -123,6 +125,7 @@ private:
       "shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint",
       "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"};
   const Configuration HOME_CONFIG_ {0, -M_PI/2, 0, -M_PI/2, 0, 0};
+  const float PROBE_FORCE_THRESHOLD_ {30.0};
 
   ros::NodeHandle nh_;
   ros::Publisher tool_command_publisher_;
@@ -285,6 +288,15 @@ private:
    * Return: Action status code. (See: http://docs.ros.org/jade/api/actionlib_msgs/html/msg/GoalStatus.html)
    */
   actionlib::SimpleClientGoalState executeTrajectoryGoal(control_msgs::FollowJointTrajectoryGoal trajectory_goal);
+
+  /**
+   * Send trajectory goal to the action server. Does not wait for completion.
+   * Used for probing and range finding when certain tasks need to be done when action is executing
+   *
+   * Input: 
+   *   trajectory_goal: The trajectory to execute.
+   */
+  void executeTrajectoryGoalNonblocking(control_msgs::FollowJointTrajectoryGoal trajectory_goal);
 
   /**
    * Generate a trajectory goal object that drive the arm from current position to input target_transform.

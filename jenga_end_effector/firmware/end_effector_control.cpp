@@ -141,7 +141,7 @@ void driveServo(int ms)
   long wait_timer = millis() + 1000;
   while(millis() < wait_timer)
   {
-    nh.spinOnce(); // Wait 250ms for the servo to be in position
+    nh.spinOnce(); // Wait 1 second for the servo to be in position
   }
   digitalWrite(13, LOW); // End signaling
 }
