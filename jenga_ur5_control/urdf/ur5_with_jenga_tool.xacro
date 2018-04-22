@@ -74,6 +74,8 @@
 
   <link name="tool_range_finder" />
 
+  <link name="tool_ar_tag" />
+
   <joint name="jenga_tool_to_gripper" type="fixed">
     <axis xyz="0 0 0" />
     <origin xyz="0 0 0.072646" rpy="0 0 0" />
@@ -93,6 +95,13 @@
     <origin xyz="0 -0.02942 0.059234" rpy="0 0 0" />
     <parent link="jenga_tool" />
     <child link="tool_range_finder" />
+  </joint>
+
+  <joint name="jenga_tool_to_ar_tag" type="fixed">
+    <axis xyz="0 0 0" />
+    <origin xyz="0 0.02933 0.0275" rpy="${-pi/2} 0 0" />
+    <parent link="jenga_tool" />
+    <child link="tool_ar_tag" />
   </joint>
 
 </robot>
