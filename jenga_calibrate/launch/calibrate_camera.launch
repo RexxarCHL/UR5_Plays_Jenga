@@ -1,0 +1,18 @@
+<launch>
+	<!-- set camera parameter -->
+    <node pkg="jenga_calibrate" type="set_camera_parameter.sh" name="set_camera_parameter" />
+
+	<!-- launch camera -->
+	<node pkg="usb_cam" type="usb_cam_node" name="camera">
+		<param name="video_device" type="string" value="/dev/video0" />
+		<param name="autofocus" type="boolean" value="false" />
+		<param name="pixel_format" value="yuyv" />
+	</node>
+
+	<!-- calibration -->
+	<node pkg="camera_calibration" type="cameracalibrator.py" name="cameracalibrator" 
+		args="--size 9x6 --square 0.02
+		image:=/camera/image_raw camera:=/camera">
+	</node>
+	
+</launch>
