@@ -1,0 +1,2 @@
+JengaTarget target
+bool result

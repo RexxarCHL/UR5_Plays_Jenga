@@ -50,6 +50,7 @@ add_message_files(
   Probe.msg
   JengaTarget.msg
   JengaTargets.msg
+  JengaTargetResult.msg
 )
 
 ## Generate services in the 'srv' folder
