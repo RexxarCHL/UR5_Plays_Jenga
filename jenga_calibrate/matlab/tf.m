@@ -18,3 +18,7 @@ rotation = base_to_marker.Transform.Rotation;
 q_base = [rotation.W, rotation.X, rotation.Y, rotation.Z];
 rot_base = quat2rotm(q_base);
 tf_base = [rot_base t_base; 0 0 0 1;];
+
+x = tf_base / tf_cam;
+q = rotm2quat(x(1:3, 1:3));
+solution = [x(1, 4), x(2, 4), x(3, 4), q(2:4), q(1)]
