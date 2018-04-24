@@ -22,6 +22,7 @@ Provides a-la-carte functionalities for the Arduino based end-effector.
 3. Go back to catkin workspace and run **catkin_make jenga_end_effector_firmware_end_effector_control**
 4. Plug in the Arduino board
 5. Run **catkin_make jenga_end_effector_firmware_end_effector_control-upload**
+6. After upload, use **rosrun rosserial_python serial_node.py /dev/ttyACM0** to communicate with the Arduino board.
 
 ## Note
 * The dependent Arduino libraries are assumed to be in **_~/Arduino/libraries_**. This can be modified in *jenga_end_effector/firmware/CMakeLists.txt*
