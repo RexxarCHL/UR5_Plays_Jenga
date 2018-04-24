@@ -1,5 +1,6 @@
 <launch>
 	<include file="$(find jenga_calibrate)/launch/camera_bringup.launch" /> 
+	<node name="image_proc" pkg="image_proc" type="image_proc" ns="camera" />
 
 	<arg name="marker_size" default="5.5" />
 	<arg name="max_new_marker_error" default="0.08" />
