@@ -21,9 +21,9 @@
 #include <jenga_msgs/EndEffectorControl.h>
 #include <jenga_msgs/EndEffectorFeedback.h>
 #include <jenga_msgs/Probe.h>
+#include <jenga_msgs/JengaTarget.h>
 
 #include "jenga_ur5_control/Ur5InverseKinematics.h"
-#include "jenga_ur5_control/JengaTarget.h"
 
 
 /**
@@ -179,7 +179,7 @@ private:
    * Callback function for receiving a target block. Move the robot arm to the target location.
    * Returns immediate and do nothing if there is an action in progress
    */
-  void jengaTargetCallback(const jenga_ur5_control::JengaTarget::ConstPtr& target_block);
+  void jengaTargetCallback(const jenga_msgs::JengaTarget::ConstPtr& target_block);
   // Callback function for when an update for joint state is available. Update internal joint state.
   void jointStateCallback(const sensor_msgs::JointState::ConstPtr& joints);
 

@@ -1,9 +1,9 @@
 # UR5 Plays Jenga - jenga_msgs
 
-Provides control messages for the Arduino-based end-effector. To be used in tandem with **_jenga_end_effector_** package.
+Provides messages for jenga player, trajectory generation and the Arduino-based end-effector.
 
 ## Author
 **Chia-Hung Lin** - *clin110*
 
-## Instructions
-See repo: **_jenga_end_effector_**.
+## Note
+* Use *catkin_make --pkg jenga_msgs* to build this package first to avoid CMake errors

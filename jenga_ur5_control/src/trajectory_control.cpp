@@ -40,7 +40,7 @@ void TrajCtrl::initializeSubscriber()
   ROS_INFO("Initializing subscribers");
 
   jenga_target_subscriber_ = // Queue size of 1 to prevent extra actions from queuing
-      nh_.subscribe<jenga_ur5_control::JengaTarget>("/jenga_target", 1, &TrajCtrl::jengaTargetCallback, this);
+      nh_.subscribe<jenga_msgs::JengaTarget>("/jenga_target", 1, &TrajCtrl::jengaTargetCallback, this);
   joint_state_subscriber_ = 
       nh_.subscribe<sensor_msgs::JointState>("/joint_states", 10, &TrajCtrl::jointStateCallback, this);
 
@@ -144,7 +144,7 @@ void TrajCtrl::jointStateCallback(const sensor_msgs::JointState::ConstPtr& joint
 /**
  * Move the robot arm to the target location. Skips execution if there is an action in progress
  */
-void TrajCtrl::jengaTargetCallback(const jenga_ur5_control::JengaTarget::ConstPtr& target_block)
+void TrajCtrl::jengaTargetCallback(const jenga_msgs::JengaTarget::ConstPtr& target_block)
 {
   /* Received candidate blocks */ 
   // TODO: Modify message to receive blocks instead of just one block

@@ -65,11 +65,11 @@ find_package(catkin REQUIRED COMPONENTS
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-add_message_files(
-  DIRECTORY msg
-  FILES
-  JengaTarget.msg
-)
+#add_message_files(
+#  DIRECTORY msg
+#  FILES
+#  JengaTarget.msg
+#)
 
 ## Generate services in the 'srv' folder
 add_service_files(
@@ -150,7 +150,7 @@ target_link_libraries(ur_kinematics_server ur5_kin ${catkin_LIBRARIES})
 
 add_executable(test_waypoints_drive src/test_waypoints_drive.cpp)
 target_link_libraries(test_waypoints_drive ${catkin_LIBRARIES})
-add_dependencies(test_waypoints_drive ${jenga_ur5_control_EXPORTED_TARGETS})
+#add_dependencies(test_waypoints_drive ${jenga_ur5_control_EXPORTED_TARGETS})
 
 add_executable(trajectory_control src/trajectory_control.cpp)
 target_link_libraries(trajectory_control ${catkin_LIBRARIES})

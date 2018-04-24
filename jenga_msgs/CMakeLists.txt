@@ -48,6 +48,8 @@ add_message_files(
   EndEffectorControl.msg
   EndEffectorFeedback.msg
   Probe.msg
+  JengaTarget.msg
+  JengaTargets.msg
 )
 
 ## Generate services in the 'srv' folder
