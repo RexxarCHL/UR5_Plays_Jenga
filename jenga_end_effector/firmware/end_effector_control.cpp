@@ -112,8 +112,8 @@ void publishRangeMessage()
     range_msg.radiation_type = range_msg.INFRARED; // No laser enum...whatever
     range_msg.field_of_view = 0.43633231299; // about 25 deg
     range_msg.min_range = 0.005; // 5 mm
-    range_msg.max_range = 0.2; // 200 mm
-    range_msg.range = range;
+    range_msg.max_range = 0.200; // 200 mm
+    range_msg.range = (float)range / 1000; // Range data is in meters
     range_publisher.publish(&range_msg);
   }
 }

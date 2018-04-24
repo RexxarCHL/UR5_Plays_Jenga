@@ -25,6 +25,7 @@ TrajCtrl::TrajCtrl(ros::NodeHandle* nh): nh_(*nh)
   is_range_finding_ = false;
 
   initializeSubscriber();
+  initializePublisher();
   initializeServiceClient();
   initializeActionClient();
 
@@ -884,7 +885,7 @@ control_msgs::FollowJointTrajectoryGoal TrajCtrl::generateHomingTrajectory(int s
 /**
  * Move in and push 25mm
  * NOTE: The return state represents the result of the probing action, 
- *       SUCCEED means success and ABORTED means failed
+ *       SUCCEED means success and PREEMPTED means failed
  */
 actionlib::SimpleClientGoalState TrajCtrl::executeProbingAction()
 {
@@ -1013,7 +1014,9 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGrippingAction(int mode)
     tf::Transform tf_block_place = retrieveTransform("roadmap_block_place");
 
     double above_offset = tf_block_above.getOrigin().getZ() - tf_block_place.getOrigin().getZ();
-    tf_target = tf::Transform( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, above_offset) );
+    tf_target = tf::Transform( 
+        tf::Quaternion::getIdentity(), 
+        tf::Vector3(0, 0, above_offset - GRIPPER_FRAME_TIP_OFFSET_) );
   }
 
   tf_target = compensateEELinkToGripper(tf_gripper * tf_target);
@@ -1314,7 +1317,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executePlaceBlockAction()
   // Originally ${direct_above_level} levels above. Tower is currently ${current_level_} levels.
   // Need to move down ${direct_above_level} - ${current_level_} levels
   double z_offset = 0.015 * (direct_above_level - current_level_);
-  tf::Transform tf_target(tf::Quaternion::getIdentity(), tf::Vector3(0, 0, z_offset));
+  tf::Transform tf_target(tf::Quaternion::getIdentity(), tf::Vector3(0, 0, z_offset - GRIPPER_FRAME_TIP_OFFSET_));
 
   tf_target = compensateEELinkToGripper(tf_gripper * tf_target);
 
@@ -1573,6 +1576,7 @@ void TrajCtrl::rangeCallback(const sensor_msgs::Range::ConstPtr& msg)
   ROS_INFO("Processing rangeCallback for %d", sequence_id);
 
   float range = msg->range;
+  ROS_INFO("range: %f", range);
   // Check if the range is in proper range. Pun intended.
   if (range > msg->max_range || range < msg->min_range)
   {
@@ -1744,7 +1748,7 @@ int main(int argc, char** argv){
 
   ros::spinOnce();
 
-  trajectory_control.debugTestFunctions();
+  trajectory_control.debugTestFlow();
 
   ros::spin();
 

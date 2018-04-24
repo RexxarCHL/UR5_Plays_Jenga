@@ -110,7 +110,7 @@ public:
   /**
    * Execute a specific action >>>from current configuration<<<.
    * NOTE: executeProbingAction returns the result of the probing action
-   *       Success = SUCCEED, Fail = ABORTED
+   *       Success = SUCCEED, Fail = PREEMPTED
    *
    * Return: Action status code. (See: http://docs.ros.org/jade/api/actionlib_msgs/html/msg/GoalStatus.html)
    */
@@ -126,6 +126,7 @@ private:
       "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"};
   const Configuration HOME_CONFIG_ {0, -M_PI/2, 0, -M_PI/2, 0, 0};
   const float PROBE_FORCE_THRESHOLD_ {30.0};
+  const float GRIPPER_FRAME_TIP_OFFSET_ {0.025}; // 15mm + some offset
 
   ros::NodeHandle nh_;
   ros::Publisher tool_command_publisher_;
