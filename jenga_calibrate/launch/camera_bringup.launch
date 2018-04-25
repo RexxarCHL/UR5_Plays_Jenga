@@ -1,4 +1,7 @@
 <launch>
+	<!-- set camera parameter -->
+    <node pkg="jenga_calibrate" type="set_camera_parameter.sh" name="set_camera_parameter" output="screen" />
+
 	<node pkg="usb_cam" type="usb_cam_node" name="camera" output="log">
 		<param name="video_device" type="string" value="/dev/video0" />
 		<param name="pixel_format" value="yuyv" />
@@ -10,5 +13,5 @@
 	</node>
 
 	<rosparam command="load" file="$(find jenga_calibrate)/yaml/camera_transformation.yaml" ns="camera" />
-	<node pkg="jenga_calibrate" name="base_link_to_camera_tf_broadcaster" type="base_link_to_camera_tf_broadcaster.py" />
+	<node pkg="jenga_calibrate" name="base_link_to_camera_tf_broadcaster" type="base_link_to_camera_tf_broadcaster.py" respawn="true" />
 </launch>
