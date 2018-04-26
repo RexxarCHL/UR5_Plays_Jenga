@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import rospy
 import tf
+import numpy as np
 
 if __name__ == '__main__':
 	rospy.init_node('base_link_to_camera_tf_broadcaster')
@@ -15,13 +16,17 @@ if __name__ == '__main__':
 		except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
 			continue
 
-		# Modify the transform for the tower location
-		trans = list(trans)
-		trans[2] = 0 # Set z = 0
-		trans[0] -= 0.0065 # The center of the tower is (-65, -65) mm from the tag
-		trans[1] -= 0.0065
-		rot = (0, 0, 0, 1) # Set rotation as identity
+		tf_base_marker = listener.fromTranslationRotation(trans, rot)
 
+		rpy = tf.transformations.euler_from_quaternion(rot)
+		rot = tf.transformations.quaternion_from_euler(-rpy[0], -rpy[1], 0)
+		tf_marker_to_tower = listener.fromTranslationRotation(
+				(-0.065, -0.065, 0),
+				tuple(rot) )
+
+		tf_base_tower = tf_base_marker * tf_marker_to_tower
+		_, _, rpy, trans, _ = tf.transformations.decompose_matrix(tf_base_tower)
+		rot = tf.transformations.quaternion_from_euler(rpy[0], rpy[1], rpy[2])
 
 		broadcaster.sendTransform( 
 				tuple(trans),
