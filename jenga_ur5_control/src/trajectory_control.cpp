@@ -40,7 +40,7 @@ void TrajCtrl::initializeSubscriber()
   ROS_INFO("Initializing subscribers");
 
   jenga_target_subscriber_ = // Queue size of 1 to prevent extra actions from queuing
-      nh_.subscribe<jenga_msgs::JengaTarget>("/jenga_target", 1, &TrajCtrl::jengaTargetCallback, this);
+      nh_.subscribe<jenga_msgs::JengaTarget>("/jenga/target", 1, &TrajCtrl::jengaTargetCallback, this);
   joint_state_subscriber_ = 
       nh_.subscribe<sensor_msgs::JointState>("/joint_states", 10, &TrajCtrl::jointStateCallback, this);
 
@@ -60,6 +60,7 @@ void TrajCtrl::initializePublisher()
   ROS_INFO("Initializing publishers");
 
   tool_command_publisher_ = nh_.advertise<jenga_msgs::EndEffectorControl>("/tool/command", 3);
+  target_result_publisher_ = nh_.advertise<jenga_msgs::JengaTargetResult>("/jenga/result", 1);
 }
 
 /**
@@ -161,64 +162,127 @@ void TrajCtrl::jengaTargetCallback(const jenga_msgs::JengaTarget::ConstPtr& targ
   int level = target_block->level;
   int block = target_block->block;
 
-  //TODO: Get everything under here to be an action send to another node?
+  bool result = playBlock(side, level, block);
+  
+  publishTargetResult(*target_block, result);
 
+  is_busy_ = false; // Release the lock
+}
+
+/**
+ * Report the result of a target block back to the player
+ */
+void TrajCtrl::publishTargetResult(jenga_msgs::JengaTarget target_block, bool result)
+{
+  // Initialize the message
+  jenga_msgs::JengaTargetResult target_result;
+  target_result.header.stamp = ros::Time::now();
+  target_result.target = target_block;
+  target_result.result = result;
+
+  // Send the result
+  target_result_publisher_.publish(target_result);
+}
+
+/**
+ * Play a block
+ */
+bool TrajCtrl::playBlock(int side, int level, int block)
+{
   /* Move arm to probing position */
-  actionlib::SimpleClientGoalState status = moveToActionPosition(PROBE, side, level, block);
+  moveToActionPosition(PROBE, side, level, block);
+
+  ROS_WARN("Moved to probing position. Exectue probing is next...");
+  debugBreak();
 
   /* Probe the block */
-  status = executeProbingAction();
-  // TODO: The subroutine monitoring the force readings will have to somehow signal here
-  //       for decision to continue or to try next block
+  actionlib::SimpleClientGoalState status = executeProbingAction();
+
+  ROS_WARN("Probing done. Moving back to home position is next...");
+  debugBreak();
 
   /* Return to up position */
-  status = moveToHomePosition(side);
+  moveToHomePosition(side);
 
-  // TODO: branch according to probing results
+  ROS_WARN("Returned home. Branching...");
+  debugBreak();
+
+  /* See if the probing action succeed */
+  if (status != actionlib::SimpleClientGoalState::StateEnum::SUCCEEDED)
+  {
+    ROS_WARN("Action did not succeed. Returning false is next...");
+    debugBreak();
+    return false; // Probing failed: the block can not be safely removed.
+  }
+  ROS_WARN("Action succeed. Moving to range finding position is next...");
+  debugBreak();
 
   /* Move arm to range finding position on the other side */
   int other_side = (side + 2) % 4;
-  status = moveToActionPosition(RANGE_FINDER, other_side, level, block);
+  moveToActionPosition(RANGE_FINDER, other_side, level, block);
+
+  ROS_WARN("Moved to range finding position. Execute action is next...");
+  debugBreak();
 
   /* Use range finder to find center of the block */
-  status = executeRangeFindingAction();
+  executeRangeFindingAction();
+
+  ROS_WARN("Executed range finding action. Move to gripping position is next...");
+  debugBreak();
 
   /* Find center of the block and compensate accordingly */
   // TODO
   // tf::Transform compensation_transform = ...
 
   /* Move arm to gripping position */
-  status = moveToActionPosition(GRIPPER, other_side, level, block);
+  moveToActionPosition(GRIPPER, other_side, level, block);
+
+  ROS_WARN("Moved to gripping position. Gripping action is next...");
+  debugBreak();
 
   /* Grip the block and pull it out */
-  status = executeGrippingAction(GRIPPER_CLOSE_NARROW); // Gripping action will auto return to home position
+  executeGrippingAction(GRIPPER_CLOSE_NARROW); // Gripping action will auto return to home position
+
+  ROS_WARN("Gripped. Return home is next...");
+  debugBreak();
 
   /* Return to up position */
-  status = moveToHomePosition(other_side);
+  moveToHomePosition(other_side);
 
-  /* Move arm to grip change position */
- // status = moveToGripChangePosition();
-  //ROS_INFO("Moving to grip change position returned with result %s", status.toString().c_str() );
+  ROS_WARN("Moved back to home position is done. Grip change is next...");
+  debugBreak();
 
   /* Change the grip fron short side to long side */
-  status = executeGripChangeAction();
-  ROS_INFO("Grip changing returned with result %s", status.toString().c_str() );
+  executeGripChangeAction();
+
+  ROS_WARN("Grip change is done. Return home is next...");
+  debugBreak();
 
   /* Return to up position */
-  status = moveToHomePosition(other_side);
+  moveToHomePosition(5);
+
+  ROS_WARN("Moving back to home position is done. Move to block placing position is next...");
+  debugBreak();
 
   /* Move to block placing position */
-  status = moveToPlaceBlockPosition();
+  moveToPlaceBlockPosition();
+
+  ROS_WARN("Moved to block placing position. Placing block is next...");
+  debugBreak();
 
   /* Place the block */
-  status = executePlaceBlockAction();
+  executePlaceBlockAction();
+
+  ROS_WARN("Placed the block. Returning home is next...");
+  debugBreak();
 
   /* Return to up position */
-  status = moveToHomePosition(other_side);
+  moveToHomePosition(5);
 
-  /* Voila! We are done playing this block */
-  // TODO: report what block is played
-  is_busy_ = false; // Release the lock
+  ROS_WARN("Done! Returning true...");
+  debugBreak();
+
+  return true;
 }
 
 /**
@@ -1617,103 +1681,7 @@ void TrajCtrl::debugTestFlow()
   int level = 9;
   int block = 0;
 
-    /* Move arm to probing position */
-  actionlib::SimpleClientGoalState status = moveToActionPosition(PROBE, side, level, block);
-
-  ROS_WARN("TEST 0");
-  debugBreak();
-
-  /* Probe the block */
-  status = executeProbingAction();
-  // TODO: The subroutine monitoring the force readings will have to somehow signal here
-  //       for decision to continue or to try next block
-
-  ROS_WARN("TEST 1");
-  debugBreak();
-
-  /* Return to up position */
-  status = moveToHomePosition(side);
-
-  ROS_WARN("TEST 2");
-  debugBreak();
-
-  /* Move arm to range finding position on the other side */
-  int other_side = (side + 2) % 4;
-  status = moveToActionPosition(RANGE_FINDER, other_side, level, block);
-
-  ROS_WARN("TEST 3");
-  debugBreak();
-
-  /* Use range finder to find center of the block */
-  status = executeRangeFindingAction();
-
-  ROS_WARN("TEST 4");
-  debugBreak();
-
-  /* Find center of the block and compensate accordingly */
-  // TODO
-  // tf::Transform compensation_transform = ...
-
-  /* Return to up position */
-  //status = moveToHomePosition(other_side);
-
-  //ROS_WARN("TEST 5");
-  //debugBreak();
-
-  /* Move arm to gripping position */
-  status = moveToActionPosition(GRIPPER, other_side, level, block);
-
-  ROS_WARN("TEST 6");
-  debugBreak();
-
-  /* Grip the block and pull it out */
-  status = executeGrippingAction(GRIPPER_CLOSE_NARROW); // Gripping action will auto return to home position
-
-  ROS_WARN("TEST 7");
-  debugBreak();
-
-  /* Return to up position */
-  status = moveToHomePosition(other_side);
-
-  ROS_WARN("TEST 8");
-  debugBreak();
-
-  /* Move arm to grip change position */
-  //status = moveToGripChangePosition();
-  //ROS_INFO("Moving to grip change position returned with result %s", status.toString().c_str() );
-
-  //ROS_WARN("TEST 9");
-  //debugBreak();
-
-  /* Change the grip fron short side to long side */
-  status = executeGripChangeAction();
-  ROS_INFO("Grip changing returned with result %s", status.toString().c_str() );
-
-  //ROS_WARN("TEST 10");
-  debugBreak();
-
-  /* Return to up position */
-  moveToHomePosition(5);
-
-  ROS_WARN("TEST 11");
-  debugBreak();
-
-  /* Move to block placing position */
-  moveToPlaceBlockPosition();
-
-  ROS_WARN("TEST 12");
-  debugBreak();
-
-  /* Place the block */
-  executePlaceBlockAction();
-
-  ROS_WARN("TEST 13");
-  debugBreak();
-
-  /* Return to up position */
-  moveToHomePosition(5);
-
-  ROS_WARN("TEST DONE");
+  playBlock(side, level, block);
 }
 
 void TrajCtrl::debugTestFunctions()
@@ -1746,11 +1714,11 @@ int main(int argc, char** argv){
   ros::NodeHandle nh;
   TrajCtrl trajectory_control(&nh);
 
-  ros::spinOnce();
+  //ros::spinOnce();
+  //trajectory_control.debugTestFlow();
+  ROS_INFO("Initialization complete. Spinning...");
 
-  trajectory_control.debugTestFlow();
-
-  ros::spin();
+  ros::spin(); // Let callbacks do the work
 
   return 0;
 }

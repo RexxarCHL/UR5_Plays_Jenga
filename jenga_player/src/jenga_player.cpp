@@ -3,18 +3,25 @@
 // Constructor for the reflex agent
 ReflexAgent::ReflexAgent(ros::NodeHandle* nh)
 {
-  ROS_INFO("1");
   nh_ = *nh;
-  target_result_subscriber_ = nh_.subscribe("/jenga/target_result", 3, &ReflexAgent::targetResultCallback, this);
+  target_result_subscriber_ = nh_.subscribe("/jenga/result", 3, &ReflexAgent::targetResultCallback, this);
   jenga_target_publisher_ = nh_.advertise<jenga_msgs::JengaTarget>("/jenga/target", 1);
-
-  ROS_INFO("2");
 
   current_tower_level_ = START_TOWER_LEVEL_;
   target_level_ = START_TARGET_LEVEL_;
   top_block_count_ = 0;
 
-  publishNextTarget(); // Publish the first block immediately after initialization
+  // Wait for other nodes to subscribe to this message
+  ros::Rate poll_rate(10);
+  ROS_INFO("Waiting for subscribers to /jenga/target...");
+  while(jenga_target_publisher_.getNumSubscribers() == 0)
+  { // Will wait forever
+    ROS_INFO_DELAYED_THROTTLE(10, "Still waiting...");
+    ros::spinOnce();
+    poll_rate.sleep();
+  }
+
+  ROS_INFO("Subscriber connected. Initialization complete.");
 }
 
 // If the result is successful, update game state. Publish the next block no matter the result.
@@ -66,17 +73,16 @@ void ReflexAgent::publishNextTarget()
   jenga_msgs::JengaTarget target;
 
   // Initialize the target message
+  target.header.stamp = ros::Time::now();
   target.side = getSide(target_level_);
   target.level = target_level_;
   target.block = 0; // Aim for the middle block
 
-  // Increment target_level_ for next target
-  target_level_++;
-
-
   ROS_INFO("Publishing target: side%d, level%d", target.side, target.level);
   jenga_target_publisher_.publish(target);
-  ROS_INFO("OK");
+
+  // Increment target_level_ for next target
+  target_level_++;
 }
 
 int main(int argc, char** argv)
@@ -86,6 +92,7 @@ int main(int argc, char** argv)
   ros::NodeHandle nh;
   ReflexAgent agent(&nh);
 
+  agent.publishNextTarget();
 
   ros::spin();
 

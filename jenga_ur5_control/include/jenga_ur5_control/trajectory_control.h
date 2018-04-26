@@ -22,6 +22,7 @@
 #include <jenga_msgs/EndEffectorFeedback.h>
 #include <jenga_msgs/Probe.h>
 #include <jenga_msgs/JengaTarget.h>
+#include <jenga_msgs/JengaTargetResult.h>
 
 #include "jenga_ur5_control/Ur5InverseKinematics.h"
 
@@ -70,6 +71,17 @@ public:
   typedef std::vector<double> Configuration;
 
   TrajCtrl(ros::NodeHandle* nh);
+
+  /**
+   * Try to play the input block.
+   *
+   * Input: the jenga block to be played
+   *   side : The side indicated on the AR tag paper. Can take on 0, 1, 2, or 3.
+   *   level: The level in the Jenga tower the target block is on.
+   *   block: The block number indicated on the AR tag paper. Can take on -1, 0, or 1.
+   * Return: true if the block is played. false if the block can not be safely removed.
+   */
+  bool playBlock(int side, int level, int block);
   
   /**
    * Drive the arm via proper trajectory to the target block location.
@@ -130,6 +142,7 @@ private:
 
   ros::NodeHandle nh_;
   ros::Publisher tool_command_publisher_;
+  ros::Publisher target_result_publisher_;
   ros::Subscriber tool_feedback_subscriber_;
   ros::Subscriber tool_range_subscriber_;
   ros::Subscriber tool_probe_subscriber_;
@@ -182,6 +195,8 @@ private:
   void jengaTargetCallback(const jenga_msgs::JengaTarget::ConstPtr& target_block);
   // Callback function for when an update for joint state is available. Update internal joint state.
   void jointStateCallback(const sensor_msgs::JointState::ConstPtr& joints);
+  // Report the result of a target block back to the player
+  void publishTargetResult(jenga_msgs::JengaTarget target_block, bool result);
 
   /*******************************************************************
    *                        INVERSE KINEMATICS                       *
