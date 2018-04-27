@@ -3,7 +3,7 @@ import rospy
 import tf
 
 if __name__ == '__main__':
-	rospy.init_node('base_link_to_camera_tf_broadcaster')
+	rospy.init_node('ar_marker_to_tower_tf_broadcaster')
 
 	listener = tf.TransformListener()
 	broadcaster = tf.TransformBroadcaster()
