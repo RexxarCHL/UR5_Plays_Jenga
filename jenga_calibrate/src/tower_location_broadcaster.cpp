@@ -1,3 +1,9 @@
+/**
+ * Tower Location Broadcaster
+ * Infer the pose of the tower by averaging the pose of four AR markers.
+ * Author: Chia-Hung Lin (clin110[AT]jhu[DOT]edu)
+ * Date Created: 04/26/2018
+ */
 #include <ros/ros.h>
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
