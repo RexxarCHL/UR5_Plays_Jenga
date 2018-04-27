@@ -1,19 +1,13 @@
-# UR5 Plays Jenga - jenga_calibrate
+# UR5 Plays Jenga - jenga_launch
 
-Provides camera calibration and hand-eye calibration routines.
+One stop to launch everything from jenga package family except jenga player. 
 
 ## Author
 **Chia-Hung Lin** - *clin110*
 
-## ROS Dependency
-* usb_cam - ROS driver for usb cameras.
-* camera_calibration - Used to find intrinsic parameters for the camera.
-* ar_track_alvar - Used for hand-eye calibration and for tracking the location of the jenga tower.
-
-## Linux Dependency
-* v4l-utils - Driver for the Logitech C920 webcam used in this project.
-
 ## Instructions
+This instruction assumes you had already successfully **catkin_make** and source'd the packages.
+### Camera and hand-eye calibration 
 1. **roscd jenga_calibrate/scripts**
 2. **chmod +x set_camera_parameter.sh base_link_to_camera_tf_broadcaster.py**
 3. **roslaunch jenga_calibrate calibrate_camera.launch**
@@ -30,3 +24,8 @@ Provides camera calibration and hand-eye calibration routines.
 14. **rosrun jenga_calibrate tower_location_broadcaster**
 15. Place the tracking paper in the view of the camera. Confirm the tracking result.
 16. Done! Close everything.
+### Launch necessary nodes for Jenga playing
+17. **roslaunch jenga_launch ur5_plays_jenga.launch**
+### Start the player node
+18. **rosrun jenga_player jenga_player**
+19. Sit back and watch the robot play Jenga. Put your hand on the **BIG RED BUTTON** though. :wink:
