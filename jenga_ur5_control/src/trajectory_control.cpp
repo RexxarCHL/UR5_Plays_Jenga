@@ -5,6 +5,7 @@
  * Date Created: 04/08/2018
  */
 #include "jenga_ur5_control/trajectory_control.h"
+#define DEBUG
 
 /**
  * Constructor
@@ -1594,6 +1595,7 @@ void TrajCtrl::publishToolCommand(int command_code)
  */
 bool TrajCtrl::blockUntilToolFeedback(int expected_feedback_code)
 {
+  #ifndef DEBUG
   ROS_INFO("Waiting for feedback %d from the tool...", expected_feedback_code);
   // Spin until flag is raised. Will wait forever
   // Flag is raised when feedbackCallback is called by the subscriber
@@ -1610,6 +1612,7 @@ bool TrajCtrl::blockUntilToolFeedback(int expected_feedback_code)
   ROS_INFO("Received %d", received_feedback_code);
 
   return (received_feedback_code == expected_feedback_code);
+  #endif
 }
 void TrajCtrl::feedbackCallback(const jenga_msgs::EndEffectorFeedback::ConstPtr& msg)
 {
@@ -1662,17 +1665,20 @@ void TrajCtrl::rangeCallback(const sensor_msgs::Range::ConstPtr& msg)
 
 void TrajCtrl::debugPrintJoints(TrajCtrl::Configuration joints)
 {
+  #ifdef DEBUG
   for (auto q : joints) 
-    ROS_DEBUG_STREAM(q << " " << std::flush);
-  ROS_DEBUG_STREAM(std::endl);
+    ROS_INFO_STREAM(q << " " << std::flush);
+  #endif
 }
 
 void TrajCtrl::debugBreak()
 {
+  #ifdef DEBUG
   char c;
   std::cin >> c;
   ros::spinOnce();
   //ros::Duration(3.0).sleep();
+  #endif
 }
 
 void TrajCtrl::debugTestFlow()
@@ -1686,26 +1692,19 @@ void TrajCtrl::debugTestFlow()
 
 void TrajCtrl::debugTestFunctions()
 {
-  top_status_ = std::vector<int> {1, 1, 1};
-
   moveToHomePosition(5);
+  for (int side = 3; side < 4; ++side)
+    for(int level = 5; level < 18; ++level)
+      for(int block = -1; block < 2; ++block)
+      {
+          moveToActionPosition(PROBE, side, level, block);
+          ROS_INFO("Moved to side%d, level%d, block %d", side, level, block);
+          //debugBreak();
+          executeProbingAction();
+          //debugBreak();
+          moveToHomePosition(side);
+      }
 
-  debugBreak();
-
-  //executeGripChangeAction();
-  moveToPlaceBlockPosition();
-
-  ROS_WARN("TEST 12");
-  debugBreak();
-
-  /* Place the block */
-  executePlaceBlockAction();
-
-  ROS_WARN("TEST 13");
-
-  debugBreak();
-
-  moveToHomePosition(5);
 }
 
 int main(int argc, char** argv){
@@ -1714,8 +1713,9 @@ int main(int argc, char** argv){
   ros::NodeHandle nh;
   TrajCtrl trajectory_control(&nh);
 
-  //ros::spinOnce();
-  //trajectory_control.debugTestFlow();
+  ros::spinOnce();
+  trajectory_control.debugTestFunctions();
+
   ROS_INFO("Initialization complete. Spinning...");
 
   ros::spin(); // Let callbacks do the work
