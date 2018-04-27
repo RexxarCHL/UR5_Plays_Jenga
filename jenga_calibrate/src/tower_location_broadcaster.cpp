@@ -20,23 +20,23 @@ struct rpy
 ros::Publisher g_vis_pub;
 
 // Publish the jenga tower as a blue bar 75x75x270mm at the location of ar_tower_location
-void publishMarker(tf::Vector3 translation, tf::Quaternion rotation)
+void publishMarkerAtTowerLocation()
 {
   visualization_msgs::Marker marker;
-  geometry_msgs::Quaternion q;
-  tf::quaternionTFToMsg(rotation, q);
 
-  //marker.header.frame_id = "base_link";
   marker.header.frame_id = "ar_tower_location";
   marker.header.stamp = ros::Time();
-  marker.ns = "basic_shapes";
+  marker.ns = "jenga";
   marker.id = 5; // marker on the tool is 0, the ones on the paper are 1~4
   marker.type = visualization_msgs::Marker::CUBE;
   marker.action = visualization_msgs::Marker::ADD;
-  marker.pose.position.x = translation[0];
-  marker.pose.position.y = translation[1];
-  marker.pose.position.z = translation[2] + 0.225;
-  marker.pose.orientation = q;
+  marker.pose.position.x = 0;
+  marker.pose.position.y = 0;
+  marker.pose.position.z = 0.135; // The origin of the cube is at its center; move up half the height of the tower
+  marker.pose.orientation.x = 0;
+  marker.pose.orientation.y = 0;
+  marker.pose.orientation.z = 0;
+  marker.pose.orientation.w = 1;
   marker.scale.x = 0.075;
   marker.scale.y = 0.075;
   marker.scale.z = 0.27;
@@ -98,13 +98,13 @@ int main(int argc, char** argv)
     // Average the translation and rpy to get the pose of the tower.
     tf::Vector3 tower_translation = sum_translation / 4.0;
     tf::Quaternion tower_rotation;
-    tower_rotation.setRPY(sum_rpy.roll / 4.0, sum_rpy.pitch / 4.0, sum_rpy.yall / 4.0);
-    // tower_rotation.setRPY(0, 0, sum_rpy.yall / 4.0);
+    // Ignore all other rotations except yall to ensure the tower is straight up
+    tower_rotation.setRPY(0, 0, sum_rpy.yall / 4.0);
     tf::Transform tf_tower(tower_rotation, tower_translation);
 
     tf_broadcaster.sendTransform(
         tf::StampedTransform(tf_tower, ros::Time::now(), "base_link", "ar_tower_location") );
-    publishMarker(tower_translation, tower_rotation);
+    publishMarkerAtTowerLocation();
   }
 
 }
