@@ -5,9 +5,9 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /TF1
-        - /TF1/Frames1
+        - /Marker1/Namespaces1
       Splitter Ratio: 0.5
-    Tree Height: 437
+    Tree Height: 284
   - Class: rviz/Selection
     Name: Selection
   - Class: rviz/Tool Properties
@@ -26,7 +26,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: ""
+    SyncSource: Camera
   - Class: rviz/Displays
     Help Height: 81
     Name: Displays
@@ -36,7 +36,7 @@ Panels:
         - /TF1
         - /TF1/Frames1
       Splitter Ratio: 0.5
-    Tree Height: 455
+    Tree Height: 356
 Visualization Manager:
   Class: ""
   Displays:
@@ -87,12 +87,34 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
           Value: true
+        jenga_tool:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
         shoulder_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
         tool0:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        tool_ar_tag:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        tool_gripper:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        tool_probe:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        tool_range_finder:
           Alpha: 1
           Show Axes: false
           Show Trail: false
@@ -131,16 +153,28 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: false
+        ar_marker_1:
+          Value: false
+        ar_marker_2:
+          Value: false
+        ar_marker_3:
+          Value: false
+        ar_marker_4:
+          Value: false
         ar_tower_location:
           Value: true
         base:
           Value: false
         base_link:
           Value: true
+        camera:
+          Value: false
         ee_link:
           Value: false
         forearm_link:
           Value: false
+        jenga_tool:
+          Value: true
         roadmap_above0:
           Value: true
         roadmap_above1:
@@ -148,6 +182,12 @@ Visualization Manager:
         roadmap_above2:
           Value: true
         roadmap_above3:
+          Value: true
+        roadmap_block_above:
+          Value: true
+        roadmap_block_drop:
+          Value: true
+        roadmap_block_place:
           Value: true
         roadmap_direct_above:
           Value: true
@@ -164,6 +204,16 @@ Visualization Manager:
         shoulder_link:
           Value: false
         tool0:
+          Value: false
+        tool0_controller:
+          Value: false
+        tool_ar_tag:
+          Value: true
+        tool_gripper:
+          Value: true
+        tool_probe:
+          Value: true
+        tool_range_finder:
           Value: true
         upper_arm_link:
           Value: false
@@ -186,8 +236,22 @@ Visualization Manager:
             ar_tower_location:
               {}
             base:
-              {}
+              tool0_controller:
+                {}
+            camera:
+              ar_marker_1:
+                {}
+              ar_marker_2:
+                {}
+              ar_marker_3:
+                {}
+              ar_marker_4:
+                {}
             roadmap_tower:
+              roadmap_block_place:
+                roadmap_block_above:
+                  roadmap_block_drop:
+                    {}
               roadmap_direct_above:
                 roadmap_above0:
                   roadmap_side0:
@@ -210,9 +274,43 @@ Visualization Manager:
                         ee_link:
                           {}
                         tool0:
-                          {}
+                          jenga_tool:
+                            tool_ar_tag:
+                              {}
+                            tool_gripper:
+                              {}
+                            tool_probe:
+                              {}
+                            tool_range_finder:
+                              {}
       Update Interval: 0
       Value: true
+    - Class: rviz/Marker
+      Enabled: true
+      Marker Topic: visualization_marker
+      Name: Marker
+      Namespaces:
+        basic_shapes: false
+        jenga: true
+      Queue Size: 100
+      Value: true
+    - Class: rviz/Camera
+      Enabled: true
+      Image Rendering: background and overlay
+      Image Topic: /camera/image_rect_color
+      Name: Camera
+      Overlay Alpha: 0.5
+      Queue Size: 2
+      Transport Hint: raw
+      Unreliable: false
+      Value: true
+      Visibility:
+        Grid: true
+        Marker: true
+        RobotModel: true
+        TF: true
+        Value: true
+      Zoom Factor: 1
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -238,33 +336,35 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 1.57110238
+      Distance: 2.42996979
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -0.0848023593
-        Y: 0.229359955
-        Z: 0.200906694
+        X: -0.256504804
+        Y: 0.140360996
+        Z: 0.294193238
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.0500000007
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: 0.624797046
+      Pitch: 0.529796481
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 0.750411153
+      Yaw: 0.870411038
     Saved: ~
 Window Geometry:
+  Camera:
+    collapsed: false
   Displays:
     collapsed: false
-  Height: 698
+  Height: 871
   Hide Left Dock: false
   Hide Right Dock: false
-  QMainWindow State: 000000ff00000000fd00000004000000000000016a00000259fc0200000009fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000006700fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073000000002800000274000000e300fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb000000100044006900730070006c006100790073010000004300000259000000e300ffffff000000010000010f00000223fc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000003600000223000000b300fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000004000000003efc0100000002fb0000000800540069006d00650000000000000004000000022300fffffffb0000000800540069006d00650100000000000004500000000000000000000002900000025900000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd0000000400000000000001ce00000321fc020000000afb0000001200530065006c0065006300740069006f006e00000001e10000009b0000006700fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c00610079007301000000280000015d000000e300fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb000000100044006900730070006c006100790073000000004300000259000000e300fffffffb0000000c00430061006d006500720061010000018b000001be0000001600ffffff000000010000010f00000223fc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000003600000223000000b300fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000004000000003efc0100000002fb0000000800540069006d0065000000000000000400000002ff00fffffffb0000000800540069006d00650100000000000004500000000000000000000003ab0000032100000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Time:
@@ -273,6 +373,6 @@ Window Geometry:
     collapsed: false
   Views:
     collapsed: false
-  Width: 1024
-  X: 2192
-  Y: 813
+  Width: 1407
+  X: 391
+  Y: 90
