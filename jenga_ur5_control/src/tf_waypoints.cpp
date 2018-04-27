@@ -124,7 +124,7 @@ int main(int argc, char** argv)
       // First pass: get the tower location from the ar tag
       try
       {
-        tf_listener.lookupTransform("ar_tower_location", "base_link", ros::Time(0), ar_tower_location);
+        tf_listener.lookupTransform("base_link", "ar_tower_location", ros::Time(0), ar_tower_location);
       }
       catch (tf::TransformException &ex) 
       {
@@ -136,8 +136,8 @@ int main(int argc, char** argv)
 
       
       // Get transform from stamped transform
-      tf_tower.setBasis(ar_tower_location.getBasis());
-      tf_tower.setOrigin(-ar_tower_location.getOrigin()); 
+      tf_tower.setBasis( ar_tower_location.getBasis() );
+      tf_tower.setOrigin( ar_tower_location.getOrigin() ); 
 
       ar_tower_location_identified = true;
     }
