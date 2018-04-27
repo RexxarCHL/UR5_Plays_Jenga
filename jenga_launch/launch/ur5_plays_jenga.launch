@@ -26,4 +26,7 @@
 
 	<!-- Bringup UR5 -->
 	<include file="$(find jenga_ur5_control)/launch/jenga_ur5_control_interface.launch" />
+
+	<!-- Start up trajectory control node -->
+	<node name="trajectory_control" pkg="jenga_ur5_control" type="trajectory_control" respawn="false" output="screen"/>
 </launch>
