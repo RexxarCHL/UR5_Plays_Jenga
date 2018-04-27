@@ -24,8 +24,10 @@ This instruction assumes you had already successfully **catkin_make** and source
 14. **rosrun jenga_calibrate tower_location_broadcaster**
 15. Place the tracking paper in the view of the camera. Confirm the tracking result.
 16. Done! Close everything.
+
 ### Launch necessary nodes for Jenga playing
 17. **roslaunch jenga_launch ur5_plays_jenga.launch**
+
 ### Start the player node
 18. **rosrun jenga_player jenga_player**
 19. Sit back and watch the robot play Jenga. Put your hand on the **BIG RED BUTTON** though. :wink:
