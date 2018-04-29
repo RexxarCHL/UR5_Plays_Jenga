@@ -343,6 +343,7 @@ private:
 
   void debugPrintJoints(Configuration joints);
   void debugBreak();
+  void driveToEveryConfig(std::vector<Configuration> configs);
 }; // class TrajCtrl
 
 #endif // JENGA_TRAJ_CTRL_H

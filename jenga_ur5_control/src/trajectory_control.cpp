@@ -129,8 +129,8 @@ sensor_msgs::JointState TrajCtrl::getCurrentJointState()
     std::swap(joint_state_.position[0], joint_state_.position[2]);
   }
 
-  for(int i = 0; i < 6; ++i)
-    std::cout << joint_state_.name[i] << ": " << joint_state_.position[i] << std::endl;
+  //for(int i = 0; i < 6; ++i)
+  //  std::cout << joint_state_.name[i] << ": " << joint_state_.position[i] << std::endl;
   return joint_state_;
 }
 
@@ -406,11 +406,6 @@ std::vector<double> TrajCtrl::transformToRowMajorTransform(tf::Transform transfo
       rotation[2].getX(), rotation[2].getY(), rotation[2].getZ(), translation.getZ(),
                      0.0,                0.0,                0.0,                1.0};
 
-  // DEBUG: print the array
-  for (auto v: rv)
-    std::cout << v << "," << std::flush;
-  std::cout << std::endl;
-
   return rv;
 }
 
@@ -422,12 +417,38 @@ TrajCtrl::Configuration TrajCtrl::eliminateConfigurations(
 {
   ROS_INFO("Eliminating configurations");
 
+  driveToEveryConfig(configurations);
+
   std::vector<TrajCtrl::Configuration> rv;
   
   for(auto config: configurations)
   {
     ROS_INFO("This configuration:");
     debugPrintJoints(config);
+
+    if (config[SHOULDER_LIFT_JOINT] > 0)
+    {
+      ROS_INFO("--REJECTED: lift joint > 0");
+      continue;
+    }
+
+    if (config[SHOULDER_PAN_JOINT] * config[ELBOW_JOINT] < 0)
+    {
+      ROS_INFO("--REJECTED: pan * elbow < 0");
+      continue;
+    }
+
+    if (config[SHOULDER_LIFT_JOINT] * config[WRIST_1_JOINT] < 0)
+    {
+      ROS_INFO("--REJECTED: lift * wirst 1 < 0");
+      continue;
+    }
+
+    if (config[WRIST_1_JOINT] > 0.1)
+    {
+      ROS_INFO("--REJECTED: wrist 1 > 0.1");
+      continue;
+    }
 
     // If reached here, this config is probably good
     ROS_INFO("--OK!");
@@ -438,8 +459,10 @@ TrajCtrl::Configuration TrajCtrl::eliminateConfigurations(
   if (!rv.size())
     ROS_WARN("NO GOOD SOLUTIONS FOUND!");
 
-  // TODO: Pick one configuration if rv.size()>1
-  return rv[0]; // for now: pick the first one
+  if (rv.size() > 1)
+    return rv[1];
+  else
+    return rv[0];
 }
 
 // Pick the configuration that requires least effort from start configuration
@@ -530,32 +553,6 @@ std::vector<TrajCtrl::Configuration> TrajCtrl::getInverseConfigurations(tf::Tran
   }
 
   return rv;
-}
-
-// Check and update game state. Return first empty block slot
-int TrajCtrl::checkGameState()
-{
-  int block = -2;
-  for (int i = 0; i < 3; ++i)
-  {
-    if (!top_status_[i]) {
-      // Found empty spot
-      top_status_[i] = 1; // Fill this spot
-      block = i - 1; // Get block number (-1, 0, or 1)
-      break; // Place in sequence -1 -> 0 -> 1
-    }
-  }
-
-  if (block == -2){
-    // No empty slot found
-    current_level_ += 1; // Increment level
-    top_orientation_ = !top_orientation_; // Change orientation
-    std::fill( top_status_.begin(), top_status_.end(), 0 ); // Reset top status
-
-    block = -1; // Set block number
-  }
-
-  return block;
 }
 
 /*******************************************************************
@@ -751,12 +748,14 @@ control_msgs::FollowJointTrajectoryGoal TrajCtrl::generateTrajectory(int side, t
   /* Eliminate configurations to only one per waypoint */
   TrajCtrl::Configuration config_above, config_target;
   // Eliminate configurations for roadmap_above using heuristic method
-  config_above = eliminateConfigurations(inv_configs_above);
+  //config_above = eliminateConfigurations(inv_configs_above);
+  config_target = eliminateConfigurations(inv_configs_target);
 
   // Eliminate configurations for roadmap_side and roadmap_block by least difference to its predecessor
   // The robot moves in this order: roadmap_above -> roadmap_side -> roadmap_block
   //config_side = pickMinimumEffortConfiguration(inv_configs_side, config_above);
-  config_target = pickMinimumEffortConfiguration(inv_configs_target, config_above);
+  //config_target = pickMinimumEffortConfiguration(inv_configs_target, config_above);
+  config_above = pickMinimumEffortConfiguration(inv_configs_above, config_target);
 
   /* Drive the arm to the waypoints sequentially */
   ROS_INFO("[generateTrajectory] Initializing new trajectory");
@@ -850,7 +849,8 @@ control_msgs::FollowJointTrajectoryGoal TrajCtrl::generateHomingTrajectory(int s
   std::vector<Configuration> inv_configs_above = getInverseConfigurations(tf_above);
 
   /* Eliminate to only one configuration */
-  TrajCtrl::Configuration config_above = eliminateConfigurations(inv_configs_above);
+  //TrajCtrl::Configuration config_above = eliminateConfigurations(inv_configs_above);
+  TrajCtrl::Configuration config_above = pickMinimumEffortConfiguration(inv_configs_above, getCurrentJointState().position);
 
   /* Drive the arm to the waypoints sequentially */
   ROS_INFO("[generateHomingTrajectory] Initializing new trajectory");
@@ -1508,6 +1508,31 @@ actionlib::SimpleClientGoalState TrajCtrl::moveToPlaceBlockPosition()
 /*******************************************************************
  *                    QUALITY OF LIFE DEBUGGING                    *
  *******************************************************************/
+// Check and update game state. Return first empty block slot
+int TrajCtrl::checkGameState()
+{
+  int block = -2;
+  for (int i = 0; i < 3; ++i)
+  {
+    if (!top_status_[i]) {
+      // Found empty spot
+      top_status_[i] = 1; // Fill this spot
+      block = i - 1; // Get block number (-1, 0, or 1)
+      break; // Place in sequence -1 -> 0 -> 1
+    }
+  }
+
+  if (block == -2){
+    // No empty slot found
+    current_level_ += 1; // Increment level
+    top_orientation_ = !top_orientation_; // Change orientation
+    std::fill( top_status_.begin(), top_status_.end(), 0 ); // Reset top status
+
+    block = -1; // Set block number
+  }
+
+  return block;
+}
 /**
  * Check the current configuration of the robot to see if it matches home configuration
  * Issues a warning if it is not in home configuration.
@@ -1627,6 +1652,7 @@ void TrajCtrl::debugBreak()
 {
   #ifdef DEBUG
   char c;
+  ROS_WARN("<<Press any key to continue>>");
   std::cin >> c;
   ros::spinOnce();
   //ros::Duration(3.0).sleep();
@@ -1645,18 +1671,51 @@ void TrajCtrl::debugTestFlow()
 void TrajCtrl::debugTestFunctions()
 {
   moveToHomePosition(5);
-  for (int side = 3; side < 4; ++side)
+  for (int side = 1; side < 4; ++side)
     for(int level = 5; level < 18; ++level)
       for(int block = -1; block < 2; ++block)
       {
+          ROS_FATAL("side%d, level%d, block %d", side, level, block);
           moveToActionPosition(PROBE, side, level, block);
-          ROS_INFO("Moved to side%d, level%d, block %d", side, level, block);
-          //debugBreak();
+          debugBreak();
           executeProbingAction();
-          //debugBreak();
+          debugBreak();
           moveToHomePosition(side);
       }
 
+}
+
+void TrajCtrl::driveToEveryConfig(std::vector<TrajCtrl::Configuration> configs)
+{
+  /* Drive the arm to each and every possible configurations */
+  for (auto config: configs)
+  {
+    ROS_INFO("This config:");
+    debugPrintJoints(config);
+
+    trajectory_msgs::JointTrajectory trajectory;
+    trajectory.joint_names = UR_JOINT_NAMES_;
+
+    trajectory_msgs::JointTrajectoryPoint current;
+    current.positions = getCurrentJointState().position;
+    current.time_from_start = ros::Duration(0.0);
+    trajectory.points.push_back(current);
+
+    trajectory_msgs::JointTrajectoryPoint home;
+    home.positions = HOME_CONFIG_;
+    home.time_from_start = ros::Duration(2.0);
+    trajectory.points.push_back(home);
+
+    trajectory_msgs::JointTrajectoryPoint next;
+    next.positions = config;
+    next.time_from_start = ros::Duration(4.0);
+    trajectory.points.push_back(next);
+
+    control_msgs::FollowJointTrajectoryGoal goal;
+    goal.trajectory = trajectory;
+    executeTrajectoryGoal(goal);
+    debugBreak();
+  }
 }
 
 int main(int argc, char** argv){
