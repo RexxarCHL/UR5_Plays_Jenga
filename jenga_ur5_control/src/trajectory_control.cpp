@@ -429,54 +429,6 @@ TrajCtrl::Configuration TrajCtrl::eliminateConfigurations(
     ROS_INFO("This configuration:");
     debugPrintJoints(config);
 
-    if (config[SHOULDER_LIFT_JOINT] > -M_PI/8.0 || config[SHOULDER_LIFT_JOINT] < -7.0/8.0*M_PI) 
-    {
-      ROS_INFO("--REJECTED: shoulder_lift_joint");
-      continue;
-    }
-
-    if (config[SHOULDER_PAN_JOINT] > 1.0 || config[SHOULDER_PAN_JOINT] < -2.1) 
-    {
-      ROS_INFO("--REJECTED: shoulder_pan_joint");
-      continue;
-    } 
-
-    //if (config[WRIST_1_JOINT] > 0.4 || config[WRIST_1_JOINT] < 0.0)
-    /* By observation:
-     *   0.1  > wrist_1_joint > 0 // side 0, side 1
-     *   3.14 > wrist_1_joint > 2.7 // side 2, side 3
-     */
-    if (config[SHOULDER_PAN_JOINT] > 0.0) // For side 0, side 1
-    {
-      if(config[WRIST_1_JOINT] < 0 || config[WRIST_1_JOINT] > 0.1)
-            {
-              ROS_INFO("--REJECTED: wrist_1_joint(PAN>0)");
-              continue;
-            }
-    }
-    else // For side 2, side 3
-    {
-      if(!(
-          (config[WRIST_1_JOINT] < -2.7 && config[WRIST_1_JOINT] > -M_PI)||  // For side 2 
-          (config[WRIST_1_JOINT] < 3 && config[WRIST_1_JOINT] > M_PI/2)// For side 3
-          ) )
-      {
-        ROS_INFO("--REJECTED: wrist_1_joint(PAN<0)");
-        continue;
-      }
-    }
-/*
-    if (!( // >>>NOT<<<
-        (config[WRIST_1_JOINT] > 0    && config[WRIST_1_JOINT] <  0.1 && pan_flag) || // For side 0 and side 1
-        (config[WRIST_1_JOINT] < -2.7 && config[WRIST_1_JOINT] > -M_PI && ~pan_flag)||  // For side 2 
-        (config[WRIST_1_JOINT] < 3 && config[WRIST_1_JOINT] > M_PI/2 && ~pan_flag)// For side 3
-        ) )
-    {
-      ROS_INFO("--REJECTED: wrist_1_joint");
-      continue;
-    }
-    */
-
     // If reached here, this config is probably good
     ROS_INFO("--OK!");
     rv.push_back(config);
