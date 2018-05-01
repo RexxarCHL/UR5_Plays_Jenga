@@ -417,7 +417,7 @@ TrajCtrl::Configuration TrajCtrl::eliminateConfigurations(
 {
   ROS_INFO("Eliminating configurations");
 
-  driveToEveryConfig(configurations);
+  //driveToEveryConfig(configurations);
 
   std::vector<TrajCtrl::Configuration> rv;
   
@@ -459,9 +459,9 @@ TrajCtrl::Configuration TrajCtrl::eliminateConfigurations(
   if (!rv.size())
     ROS_WARN("NO GOOD SOLUTIONS FOUND!");
 
-  if (rv.size() > 1)
-    return rv[1];
-  else
+  //if (rv.size() > 1)
+  //  return rv[1];
+  //else
     return rv[0];
 }
 
@@ -1545,7 +1545,7 @@ void TrajCtrl::checkRobotInHomeConfig()
 
   ros::spinOnce();
 
-  for (int i = 0; i < 9; ++i)
+  for (int i = 0; i < 6; ++i)
   {
     double q = joint_state_.position[i];
     std::cout << q << std::endl;

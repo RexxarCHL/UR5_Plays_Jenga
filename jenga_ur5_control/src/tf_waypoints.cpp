@@ -53,7 +53,7 @@ int main(int argc, char** argv)
    * tower
    */
   double xy_offset = 0.15;
-  int above_level_offset = 3;
+  int above_level_offset = 10;
   z_offset = 0.015 * above_level_offset;
   tf_above[0].setOrigin(tf::Vector3(xy_offset, 0, z_offset));
   q.setRPY(M_PI/2, 0.0, -M_PI/2);
@@ -112,7 +112,8 @@ int main(int argc, char** argv)
   q.setRPY(M_PI/4, 0, 0);
   tf::Transform tf_block_drop( q, tf::Vector3(0, block_above_offset, 0) );
 
-  //q.setRPY
+  // Wait for ar_tower_location to exist
+  tf_listener.waitForTransform("base_link", "ar_tower_location", ros::Time(), ros::Duration(5.0));
 
   // Publish the precalculated frames
   ros::Rate rate(10.0);
@@ -139,7 +140,7 @@ int main(int argc, char** argv)
       tf_tower.setBasis( ar_tower_location.getBasis() );
       tf_tower.setOrigin( ar_tower_location.getOrigin() ); 
 
-      ar_tower_location_identified = true;
+      //ar_tower_location_identified = true;
     }
 
     tf_broadcaster.sendTransform(
