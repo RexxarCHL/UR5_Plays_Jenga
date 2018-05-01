@@ -40,7 +40,7 @@ int main(int argc, char** argv)
    */
   int direct_above_level_offset = 30;
   nh.setParam("direct_above_level", direct_above_level_offset); // Store this as a parameter for use in trajectory control
-  double z_offset = 0.015 * direct_above_level_offset;
+  double z_offset = 0.015 * direct_above_level_offset - 0.0075;
   tf_direct_above.setOrigin(tf::Vector3(0.0, 0.0, z_offset));
   tf::Quaternion q;
   q.setRPY(M_PI, 0.0, 0.0);
