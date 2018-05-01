@@ -4,7 +4,7 @@
 	<node name="image_proc" pkg="image_proc" type="image_proc" ns="camera" />
 
 	<!-- AR tracking -->
-	<arg name="marker_size" default="5.5" />
+	<arg name="marker_size" default="9.0" />
 	<arg name="max_new_marker_error" default="0.08" />
 	<arg name="max_track_error" default="0.2" />
 	<arg name="cam_image_topic" default="/camera/image_raw" />
