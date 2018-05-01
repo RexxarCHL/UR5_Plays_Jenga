@@ -229,7 +229,7 @@ private:
    *   configurations: A vector of configurations to eliminate.
    * Return: A vector of eliminated configuration. At least size 1.
    */
-  Configuration eliminateConfigurations(std::vector<Configuration> configurations);
+  Configuration eliminateConfigurations(std::vector<Configuration> configurations, tf::Transform target_transform);
 
   /**
    * Pick the configuration that requires least effort from start configuration. 
@@ -242,6 +242,15 @@ private:
   Configuration pickMinimumEffortConfiguration(
       std::vector<Configuration> possible_configurations, 
       Configuration start_configuration);
+
+  /**
+   * Tie break the remaining configurations.
+   * 
+   * Input:
+   *   configs: A vector of configurations to tie break
+   * Return: One configuration that best suits the desired transform
+   */
+  Configuration tieBreak(std::vector<Configuration> configs, tf::Transform target_transform);
 
 
   /*******************************************************************

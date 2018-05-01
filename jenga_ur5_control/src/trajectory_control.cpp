@@ -320,7 +320,7 @@ actionlib::SimpleClientGoalState TrajCtrl::driveArmToJengaBlock(int side, int le
   /* Eliminate configurations to only one per waypoint */
   TrajCtrl::Configuration config_above, config_side, config_block;
   // Eliminate configurations for roadmap_above using heuristic method
-  config_above = eliminateConfigurations(inv_configs_above);
+  config_above = eliminateConfigurations(inv_configs_above, tf_above);
 
   // Eliminate configurations for roadmap_side and roadmap_block by least difference to its predecessor
   // The robot moves in this order: roadmap_above -> roadmap_side -> roadmap_block
@@ -413,7 +413,7 @@ std::vector<double> TrajCtrl::transformToRowMajorTransform(tf::Transform transfo
  * Cherry pick some suitable configurations for Jenga playing
  */
 TrajCtrl::Configuration TrajCtrl::eliminateConfigurations(
-    std::vector<TrajCtrl::Configuration> configurations)
+    std::vector<TrajCtrl::Configuration> configurations, tf::Transform target_transform)
 {
   ROS_INFO("Eliminating configurations");
 
@@ -459,9 +459,9 @@ TrajCtrl::Configuration TrajCtrl::eliminateConfigurations(
   if (!rv.size())
     ROS_WARN("NO GOOD SOLUTIONS FOUND!");
 
-  //if (rv.size() > 1)
-  //  return rv[1];
-  //else
+  if (rv.size() > 1)
+    return tieBreak(rv, target_transform);
+  else
     return rv[0];
 }
 
@@ -552,6 +552,33 @@ std::vector<TrajCtrl::Configuration> TrajCtrl::getInverseConfigurations(tf::Tran
     rv.push_back(this_config);
   }
 
+  return rv;
+}
+/**
+ * Compare the yaw angle relative to base_link to determine the proper angle for shoulder_pan_joint.
+ */
+TrajCtrl::Configuration TrajCtrl::tieBreak(std::vector<TrajCtrl::Configuration> configs, tf::Transform target_transform) 
+{
+  ROS_INFO("Tie breaking configurations...");
+  ROS_ERROR_COND(configs.size() != 2, "The size of configs is NOT 2");
+
+  /* Get the RPY angles for both the tower and the target */
+  tf::Transform tf_tower = retrieveTransform("roadmap_tower"); // Get the tower location
+  double tower_roll, tower_pitch, tower_yaw;
+  tf_tower.getBasis().getRPY(tower_roll, tower_pitch, tower_yaw);
+
+  double target_roll, target_pitch, target_yaw;
+  target_transform.getBasis().getRPY(target_roll, target_pitch, target_yaw);
+
+  /* Do yaw angle comparison */
+  Configuration rv;
+  if (target_yaw > tower_yaw)
+    rv = configs[0][SHOULDER_PAN_JOINT] < 0 ? configs[0] : configs[1]; // Select pan < 0 configuration
+  else // target_yaw <= tower_yaw
+    rv = configs[0][SHOULDER_PAN_JOINT] > 0 ? configs[0] : configs[1]; // Select pan > 0 configuration
+
+  ROS_INFO("Selected: ");
+  debugPrintJoints(rv);
   return rv;
 }
 
@@ -749,7 +776,7 @@ control_msgs::FollowJointTrajectoryGoal TrajCtrl::generateTrajectory(int side, t
   TrajCtrl::Configuration config_above, config_target;
   // Eliminate configurations for roadmap_above using heuristic method
   //config_above = eliminateConfigurations(inv_configs_above);
-  config_target = eliminateConfigurations(inv_configs_target);
+  config_target = eliminateConfigurations(inv_configs_target, tf_target);
 
   // Eliminate configurations for roadmap_side and roadmap_block by least difference to its predecessor
   // The robot moves in this order: roadmap_above -> roadmap_side -> roadmap_block
