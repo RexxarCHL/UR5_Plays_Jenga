@@ -27,7 +27,7 @@ void publishMarkerAtTowerLocation()
   marker.header.frame_id = "ar_tower_location";
   marker.header.stamp = ros::Time();
   marker.ns = "jenga";
-  marker.id = 5; // marker on the tool is 0, the ones on the paper are 1~4
+  marker.id = 6; // marker on the tool is 0, the ones on the paper are 1~4
   marker.type = visualization_msgs::Marker::CUBE;
   marker.action = visualization_msgs::Marker::ADD;
   marker.pose.position.x = 0;
@@ -60,46 +60,67 @@ int main(int argc, char** argv)
   // Wait for a wild ar_marker_1 to appear
   tf_listener.waitForTransform("ar_marker_1", "base_link", ros::Time(), ros::Duration(5.0));
 
-  std::array<bool, 4> frame_exists { {0, 0, 0, 0} }; // double brackets needed in C++11
+  //std::array<bool, 4> frame_exists { {0, 0, 0, 0} }; // double brackets needed in C++11
   std::array<std::string, 4> marker_name { {"ar_marker_1", "ar_marker_2", "ar_marker_3", "ar_marker_4"} };
   tf::StampedTransform tf_stamped;
   tf::Matrix3x3 rotation_matrix;
   std::array<tf::Vector3, 4> tf_markers_translation;
   std::array<struct rpy, 4> tf_markers_rpy;
 
+
+  /* Prior knowledge of the tracking paper: AR marker is 90mm, tower is 75mm
+   *  ___       ___
+   * | 1 |     | 2 |
+   * |___|_____|___|   ^ y
+   *     |     |       |
+   *     |tower|       --->x
+   *  ___|_____|___
+   * | 4 |     | 3 |
+   * |___|     |___|
+   */
+  double xy_offset = 0.0825; // (90+75)/2 = 82.5mm
+  std::array<tf::Vector3, 4> translation_to_tower;
+  translation_to_tower[0] = tf::Vector3( xy_offset, -xy_offset, 0); // Marker 1
+  translation_to_tower[1] = tf::Vector3(-xy_offset, -xy_offset, 0); // Marker 2
+  translation_to_tower[2] = tf::Vector3(-xy_offset,  xy_offset, 0); // Marker 3
+  translation_to_tower[3] = tf::Vector3( xy_offset,  xy_offset, 0); // Marker 4
+
   ros::Rate poll_rate(10);
   while ( nh.ok() )
   {
     tf::Vector3 sum_translation(0.0, 0.0, 0.0);
     struct rpy  sum_rpy {0.0, 0.0, 0.0};
+    int available_frame = 0;
+    bool frame_exists = false;
 
     for (int i = 0; i < 4; i++)
     {
-      //marker_name = "ar_marker_" + std::to_string(i + 1);
-      frame_exists[i] = tf_listener.waitForTransform("base_link", marker_name[i], ros::Time(), ros::Duration(0.1));
-      
-      // If a frame is present, update the translation and rpy
-      // If a frame is NOT present, use the previous translation and rpy
-      if (frame_exists[i])
-      {
-        tf_listener.lookupTransform("base_link", marker_name[i], ros::Time(), tf_stamped);
-        tf_markers_translation[i] = tf_stamped.getOrigin();
-        rotation_matrix = tf_stamped.getBasis();
-        rotation_matrix.getRPY(tf_markers_rpy[i].roll, tf_markers_rpy[i].pitch, tf_markers_rpy[i].yall);
-      }
+      frame_exists = tf_listener.waitForTransform("base_link", marker_name[i], ros::Time(), ros::Duration(0.1));
 
-      // Sum up translation and rpy to do an averaging action.
-      sum_translation += tf_markers_translation[i];
+      if (!frame_exists)
+        continue; // Ignore unavailable marker
+
+      tf_listener.lookupTransform("base_link", marker_name[i], ros::Time(), tf_stamped);
+      tf_markers_translation[i] = tf_stamped.getOrigin();
+      rotation_matrix = tf_stamped.getBasis();
+      rotation_matrix.getRPY(tf_markers_rpy[i].roll, tf_markers_rpy[i].pitch, tf_markers_rpy[i].yall);
+    
+      // Approximate the tower location based on prior knowledge of the tracking paper
+      sum_translation += tf_markers_translation[i] + translation_to_tower[i]; 
+
+      // Average the pose information
       sum_rpy.roll += tf_markers_rpy[i].roll;
       sum_rpy.pitch += tf_markers_rpy[i].pitch;
       sum_rpy.yall += tf_markers_rpy[i].yall;
+
+      available_frame++; // Keep track of the number of available frames
     }
 
     // Average the translation and rpy to get the pose of the tower.
-    tf::Vector3 tower_translation = sum_translation / 4.0;
+    tf::Vector3 tower_translation = sum_translation / available_frame;
     tf::Quaternion tower_rotation;
     // Ignore all other rotations except yall to ensure the tower is straight up
-    tower_rotation.setRPY(0, 0, sum_rpy.yall / 4.0);
+    tower_rotation.setRPY(0, 0, sum_rpy.yall / available_frame);
     tf::Transform tf_tower(tower_rotation, tower_translation);
 
     tf_broadcaster.sendTransform(
