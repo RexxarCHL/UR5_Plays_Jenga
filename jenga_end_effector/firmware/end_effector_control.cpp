@@ -48,9 +48,9 @@ void commandCallback(const jenga_msgs::EndEffectorControl& cmd)
 {
   uint8_t command = cmd.command_code;
   
-  char msg[24];
-  sprintf(msg, "Received command: %d", command);
-  nh.loginfo(msg);
+  //char msg[24];
+  //sprintf(msg, "Received command: %d", command);
+  //nh.loginfo(msg);
 
   switch (command)
   {
@@ -164,14 +164,14 @@ void setup()
   range_on = false;
 
   /* Initialize servo and sensors */
-  nh.loginfo("Initializing sensors...");
+  //nh.loginfo("Initializing sensors...");
   // Servo
   servo.attach(9);
 
   // Range finder
   while(!range_finder.begin())
   {
-    nh.logfatal("Failed to find range finder");
+    //nh.logfatal("Failed to find range finder");
   }
 
   // Load cell

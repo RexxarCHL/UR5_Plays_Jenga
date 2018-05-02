@@ -7,6 +7,6 @@ link_directories(~/Arduino/libraries)
 
 generate_arduino_firmware(end_effector_control
   SRCS end_effector_control.cpp ${ROS_LIB_DIR}/time.cpp
-  BOARD mega2560
+  BOARD uno
   PORT /dev/ttyACM0
 )
