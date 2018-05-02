@@ -95,18 +95,30 @@ int main(int argc, char** argv)
 
     for (int i = 0; i < 4; i++)
     {
-      frame_exists = tf_listener.waitForTransform("base_link", marker_name[i], ros::Time(), ros::Duration(0.1));
+      ros::Time now = ros::Time::now();
+      frame_exists = tf_listener.waitForTransform("base_link", marker_name[i], now, ros::Duration(0.5));
 
       if (!frame_exists)
         continue; // Ignore unavailable marker
 
-      tf_listener.lookupTransform("base_link", marker_name[i], ros::Time(), tf_stamped);
+      tf_listener.lookupTransform("base_link", marker_name[i], now, tf_stamped);
       tf_markers_translation[i] = tf_stamped.getOrigin();
       rotation_matrix = tf_stamped.getBasis();
       rotation_matrix.getRPY(tf_markers_rpy[i].roll, tf_markers_rpy[i].pitch, tf_markers_rpy[i].yall);
-    
-      // Approximate the tower location based on prior knowledge of the tracking paper
-      sum_translation += tf_markers_translation[i] + translation_to_tower[i]; 
+
+      // Do R*p calculation to rotate the relative tower translation based on rotation of the marker
+      tf::Vector3 approx_tower_location;
+      approx_tower_location.setX( rotation_matrix.getRow(0).dot(translation_to_tower[i]) );
+      approx_tower_location.setY( rotation_matrix.getRow(1).dot(translation_to_tower[i]) );
+      approx_tower_location.setZ( rotation_matrix.getRow(2).dot(translation_to_tower[i]) );
+
+      // Get the approximate tower location relative to base_link by adding translation of marker: R*p + p
+      approx_tower_location += tf_markers_translation[i];
+      sum_translation += approx_tower_location;
+
+      //ROS_INFO("marker translation[%d]: %.3f, %.3f, %.3f", i, tf_markers_translation[i].getX(), tf_markers_translation[i].getY(), tf_markers_translation[i].getZ());
+
+      ROS_INFO("approx translation[%d]: %.3f, %.3f, %.3f", i, approx_tower_location.getX(), approx_tower_location.getY(), approx_tower_location.getZ());
 
       // Average the pose information
       sum_rpy.roll += tf_markers_rpy[i].roll;
@@ -122,6 +134,8 @@ int main(int argc, char** argv)
     // Ignore all other rotations except yall to ensure the tower is straight up
     tower_rotation.setRPY(0, 0, sum_rpy.yall / available_frame);
     tf::Transform tf_tower(tower_rotation, tower_translation);
+
+    ROS_INFO("Available_frame: %d, x: %.3f, y: %.3f, z: %.3f", available_frame, tower_translation.getX(), tower_translation.getY(), tower_translation.getZ() );
 
     tf_broadcaster.sendTransform(
         tf::StampedTransform(tf_tower, ros::Time::now(), "base_link", "ar_tower_location") );
