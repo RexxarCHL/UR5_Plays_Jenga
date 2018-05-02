@@ -555,26 +555,28 @@ std::vector<TrajCtrl::Configuration> TrajCtrl::getInverseConfigurations(tf::Tran
   return rv;
 }
 /**
- * Compare the yaw angle relative to base_link to determine the proper angle for shoulder_pan_joint.
+ * Compare the arctan angles on xy-plane to determine the proper position for shoulder_pan_joint.
  */
 TrajCtrl::Configuration TrajCtrl::tieBreak(std::vector<TrajCtrl::Configuration> configs, tf::Transform target_transform) 
 {
   ROS_INFO("Tie breaking configurations...");
   ROS_ERROR_COND(configs.size() != 2, "The size of configs is NOT 2");
 
-  /* Get the RPY angles for both the tower and the target */
+  /* Get arctan angles of tower and target based on its x-y location */
   tf::Transform tf_tower = retrieveTransform("roadmap_tower"); // Get the tower location
-  double tower_roll, tower_pitch, tower_yaw;
-  tf_tower.getBasis().getRPY(tower_roll, tower_pitch, tower_yaw);
 
-  double target_roll, target_pitch, target_yaw;
-  target_transform.getBasis().getRPY(target_roll, target_pitch, target_yaw);
+  tf::Vector3 translation_tower = tf_tower.getOrigin();
+  tf::Vector3 translation_target = target_transform.getOrigin();
 
-  /* Do yaw angle comparison */
+  double rotation_tower, rotation_target;
+  rotation_tower = std::atan2( translation_tower.getY(), translation_tower.getX() );
+  rotation_target = std::atan2( translation_target.getY(), translation_target.getX() );
+
+  /* Do angle comparison */
   Configuration rv;
-  if (target_yaw > tower_yaw)
+  if (rotation_target > rotation_tower)
     rv = configs[0][SHOULDER_PAN_JOINT] < 0 ? configs[0] : configs[1]; // Select pan < 0 configuration
-  else // target_yaw <= tower_yaw
+  else // rotation_target <= rotation_tower
     rv = configs[0][SHOULDER_PAN_JOINT] > 0 ? configs[0] : configs[1]; // Select pan > 0 configuration
 
   ROS_INFO("Selected: ");
@@ -831,6 +833,13 @@ control_msgs::FollowJointTrajectoryGoal TrajCtrl::generateTrajectory(int side, t
   ROS_INFO("Point 3:");
   debugPrintJoints(joints_side.positions);
   */
+  double delta = 0.001;
+  double wrist_3_difference = std::abs(config_target[WRIST_3_JOINT] - config_above[WRIST_3_JOINT]);
+  if (wrist_3_difference < 2*M_PI + delta && wrist_3_difference > 2*M_PI - delta )
+  {
+    // wrist 3 rotates 2pi, set two joint values to be the same
+    config_target[WRIST_3_JOINT] = config_above[WRIST_3_JOINT];
+  }
 
   // Finally, drive to target
   trajectory_msgs::JointTrajectoryPoint joints_target;
@@ -894,6 +903,14 @@ control_msgs::FollowJointTrajectoryGoal TrajCtrl::generateHomingTrajectory(int s
   trajectory.points.push_back(joints_current);
   ROS_INFO("[generateHomingTrajectory] Point 1:");
   debugPrintJoints(joints_current.positions);
+
+  double delta = 0.001;
+  double wrist_3_difference = std::abs(joints_current.positions[WRIST_3_JOINT] - config_above[WRIST_3_JOINT]);
+  if (wrist_3_difference < 2*M_PI + delta && wrist_3_difference > 2*M_PI - delta )
+  {
+    // wrist 3 rotates 2pi, set two joint values to be the same
+    config_above[WRIST_3_JOINT] = joints_current.positions[WRIST_3_JOINT];
+  }
 
   if (!return_direct) // Not returning directly, i.e. robot is currently in one of four sides
   {
@@ -1752,7 +1769,7 @@ int main(int argc, char** argv){
   TrajCtrl trajectory_control(&nh);
 
   ros::spinOnce();
-  trajectory_control.debugTestFunctions();
+  //trajectory_control.debugTestFunctions();
 
   ROS_INFO("Initialization complete. Spinning...");
 
