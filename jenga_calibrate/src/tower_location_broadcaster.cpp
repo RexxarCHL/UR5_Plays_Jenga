@@ -86,6 +86,8 @@ int main(int argc, char** argv)
   translation_to_tower[3] = tf::Vector3( xy_offset,  xy_offset, 0); // Marker 4
 
   ros::Rate poll_rate(10);
+  tf::Vector3 tower_translation;
+  tf::Quaternion tower_rotation;
   while ( nh.ok() )
   {
     tf::Vector3 sum_translation(0.0, 0.0, 0.0);
@@ -128,11 +130,15 @@ int main(int argc, char** argv)
       available_frame++; // Keep track of the number of available frames
     }
 
-    // Average the translation and rpy to get the pose of the tower.
-    tf::Vector3 tower_translation = sum_translation / available_frame;
-    tf::Quaternion tower_rotation;
-    // Ignore all other rotations except yall to ensure the tower is straight up
-    tower_rotation.setRPY(0, 0, sum_rpy.yall / available_frame);
+    if (available_frame)
+    {
+      // Average the translation and rpy to get the pose of the tower.
+      tower_translation = sum_translation / available_frame;
+      tower_translation.setZ(0.0); // The tower is ALWAYS on the table, i.e. z=0
+      // Ignore all other rotations except yall to ensure the tower is straight up
+      tower_rotation.setRPY(0, 0, sum_rpy.yall / available_frame);
+    }
+
     tf::Transform tf_tower(tower_rotation, tower_translation);
 
     ROS_INFO("Available_frame: %d, x: %.3f, y: %.3f, z: %.3f", available_frame, tower_translation.getX(), tower_translation.getY(), tower_translation.getZ() );
