@@ -121,5 +121,5 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-add_executable(jenga_player src/jenga_player.cpp)
-target_link_libraries(jenga_player ${catkin_LIBRARIES})
+add_executable(reflex_agent src/reflex_agent.cpp)
+target_link_libraries(reflex_agent ${catkin_LIBRARIES})

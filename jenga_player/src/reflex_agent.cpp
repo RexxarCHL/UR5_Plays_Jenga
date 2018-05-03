@@ -1,4 +1,4 @@
-#include "jenga_player/jenga_player.h"
+#include "jenga_player/reflex_agent.h"
 
 // Constructor for the reflex agent
 ReflexAgent::ReflexAgent(ros::NodeHandle* nh)
