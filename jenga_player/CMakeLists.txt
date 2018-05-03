@@ -123,3 +123,6 @@ include_directories(
 
 add_executable(reflex_agent src/reflex_agent.cpp)
 target_link_libraries(reflex_agent ${catkin_LIBRARIES})
+
+add_executable(two_sides_agent src/two_sides_agent.cpp)
+target_link_libraries(two_sides_agent ${catkin_LIBRARIES})
