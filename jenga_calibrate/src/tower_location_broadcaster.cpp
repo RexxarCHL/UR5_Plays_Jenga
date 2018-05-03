@@ -78,7 +78,7 @@ int main(int argc, char** argv)
    * | 4 |     | 3 |
    * |___|     |___|
    */
-  double xy_offset = 0.0825; // (90+75)/2 = 82.5mm
+  double xy_offset = 0.0925; // (90+75+20)/2 = 82.5mm
   std::array<tf::Vector3, 4> translation_to_tower;
   translation_to_tower[0] = tf::Vector3( xy_offset, -xy_offset, 0); // Marker 1
   translation_to_tower[1] = tf::Vector3(-xy_offset, -xy_offset, 0); // Marker 2
