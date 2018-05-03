@@ -228,6 +228,8 @@ bool TrajCtrl::playBlock(int side, int level, int block)
   /* Use range finder to find center of the block */
   executeRangeFindingAction();
 
+  saveData();
+
   ROS_WARN("Executed range finding action. Move to gripping position is next...");
   debugBreak();
 
@@ -1759,6 +1761,43 @@ void TrajCtrl::driveToEveryConfig(std::vector<TrajCtrl::Configuration> configs)
     control_msgs::FollowJointTrajectoryGoal goal;
     goal.trajectory = trajectory;
     executeTrajectoryGoal(goal);
+    debugBreak();
+  }
+}
+
+void TrajCtrl::saveData()
+{
+  ROS_INFO("SAVING DATA");
+  ros::spinOnce(); // Process the callback queue one last time
+  debugBreak();
+
+  std::ofstream out_file("/home/clin110/data/range_finder_data.txt");
+
+  if (out_file.is_open())
+  {
+    ROS_INFO("File opened");
+
+    std::ostringstream tf_data, range_data;
+    tf_data << "{\"tf\": [";
+    range_data << "{\"range\": [";
+
+    for (auto it = range_finder_data_.begin(); it != range_finder_data_.end(); ++it)
+    {
+      tf_data << it->first.getOrigin().getY();
+      range_data << it->second;
+      if ( (it + 1) != range_finder_data_.end() )
+      {
+        tf_data << ",";
+        range_data << ",";
+      }
+    }
+    tf_data << "]}";
+    range_data << "]}";
+    out_file << "" << tf_data.str() << "\n\n" << range_data.str() << "\n";
+    out_file.close();
+
+    ROS_INFO("Written %lu data points", range_finder_data_.size());
+    // Use strcu2array(jsondecode(str)) in matlab
     debugBreak();
   }
 }

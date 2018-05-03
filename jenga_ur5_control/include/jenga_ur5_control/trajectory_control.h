@@ -26,6 +26,9 @@
 
 #include "jenga_ur5_control/Ur5InverseKinematics.h"
 
+#include <ostream>
+#include <fstream>
+
 
 /**
  * AR paper orientation
@@ -354,6 +357,7 @@ private:
   void debugPrintJoints(Configuration joints);
   void debugBreak();
   void driveToEveryConfig(std::vector<Configuration> configs);
+  void saveData();
 }; // class TrajCtrl
 
 #endif // JENGA_TRAJ_CTRL_H
