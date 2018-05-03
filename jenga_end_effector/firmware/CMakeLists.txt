@@ -6,7 +6,7 @@ link_directories(${ARDUINO_SDK_PATH}/libraries)
 link_directories(~/Arduino/libraries)
 
 generate_arduino_firmware(end_effector_control
-  SRCS end_effector_control.cpp ${ROS_LIB_DIR}/time.cpp
+  SRCS end_effector_control_v2.cpp ${ROS_LIB_DIR}/time.cpp
   BOARD uno
   PORT /dev/ttyACM0
 )

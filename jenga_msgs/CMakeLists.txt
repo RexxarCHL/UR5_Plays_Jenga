@@ -48,6 +48,7 @@ add_message_files(
   EndEffectorControl.msg
   EndEffectorFeedback.msg
   Probe.msg
+  SensorData.msg
   JengaTarget.msg
   JengaTargets.msg
   JengaTargetResult.msg
