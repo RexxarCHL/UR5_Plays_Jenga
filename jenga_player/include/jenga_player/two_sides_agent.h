@@ -13,14 +13,12 @@ public:
   void publishNextTarget(); // Inherited
 private:
   tf::TransformListener tf_listener_;
-  int top_block_count_; // Track how many blocks are currently on the top.
   int playing_side_; // Store which side to push from 
-  int* playing_side_level;
-  int previous_side_;
-  int previous_level_;
-  int previous_block_;
-  bool previous_result_;
-  std::array<int, 2> side_levels;
+  std::array<int, 2> side_levels_;
+  std::array<int, 2> side_blocks_;
+  int playing_level_;
+  int playing_block_;
+  bool playing_result_;
   /**
    * Process the result and publish the next target block.
    */

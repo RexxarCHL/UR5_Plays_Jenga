@@ -28,7 +28,7 @@ protected:
   
   // Game state
   int current_tower_level_;
-  int target_level_;
+  int top_block_count_; // Track how many blocks are currently on the top.
 }; // JengaAgent
 
 #endif // JENGA_PLAYER_H

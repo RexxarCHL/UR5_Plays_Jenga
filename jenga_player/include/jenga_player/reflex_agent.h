@@ -10,7 +10,7 @@ public:
   ReflexAgent(ros::NodeHandle* nh);
   void publishNextTarget(); // Inherited
 private:
-  int top_block_count_; // Track how many blocks are currently on the top.
+  int target_level_;
   /**
    * Process the result and publish the next target block.
    */
