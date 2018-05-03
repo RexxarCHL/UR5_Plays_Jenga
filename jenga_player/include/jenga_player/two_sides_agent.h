@@ -12,12 +12,12 @@ public:
   TwoSidesAgent(ros::NodeHandle* nh);
   void publishNextTarget(); // Inherited
 private:
-  const std::string SIDE_FRAME_NAMES {
+  const std::array<std::string, 4> SIDE_FRAME_NAMES {{
     "roadmap_side0",
     "roadmap_side1",
     "roadmap_side2",
     "roadmap_side3"
-  };
+  }}; // double brackets needed for C++11
 
   tf::TransformListener tf_listener_;
   int playing_side_; // Store which side to push from 
