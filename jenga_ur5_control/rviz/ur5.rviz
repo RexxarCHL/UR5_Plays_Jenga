@@ -5,6 +5,7 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /TF1
+        - /Marker1
         - /Marker1/Namespaces1
       Splitter Ratio: 0.5
     Tree Height: 284
@@ -153,13 +154,13 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: false
+        ar_marker_0:
+          Value: true
         ar_marker_1:
           Value: false
         ar_marker_2:
           Value: false
         ar_marker_3:
-          Value: false
-        ar_marker_4:
           Value: false
         ar_tower_location:
           Value: true
@@ -203,6 +204,18 @@ Visualization Manager:
           Value: true
         shoulder_link:
           Value: false
+        target_transform:
+          Value: true
+        tf_above_ee_link:
+          Value: true
+        tf_block:
+          Value: true
+        tf_block_drop_ee_link:
+          Value: true
+        tf_block_ee_link:
+          Value: true
+        tf_side_ee_link:
+          Value: true
         tool0:
           Value: false
         tool0_controller:
@@ -239,13 +252,13 @@ Visualization Manager:
               tool0_controller:
                 {}
             camera:
+              ar_marker_0:
+                {}
               ar_marker_1:
                 {}
               ar_marker_2:
                 {}
               ar_marker_3:
-                {}
-              ar_marker_4:
                 {}
             roadmap_tower:
               roadmap_block_place:
@@ -255,7 +268,8 @@ Visualization Manager:
               roadmap_direct_above:
                 roadmap_above0:
                   roadmap_side0:
-                    {}
+                    tf_block:
+                      {}
                 roadmap_above1:
                   roadmap_side1:
                     {}
@@ -283,6 +297,16 @@ Visualization Manager:
                               {}
                             tool_range_finder:
                               {}
+            target_transform:
+              {}
+            tf_above_ee_link:
+              {}
+            tf_block_drop_ee_link:
+              {}
+            tf_block_ee_link:
+              {}
+            tf_side_ee_link:
+              {}
       Update Interval: 0
       Value: true
     - Class: rviz/Marker
@@ -290,7 +314,7 @@ Visualization Manager:
       Marker Topic: visualization_marker
       Name: Marker
       Namespaces:
-        basic_shapes: false
+        basic_shapes: true
         jenga: true
       Queue Size: 100
       Value: true
@@ -336,25 +360,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 2.42996979
+      Distance: 1.15856147
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -0.256504804
-        Y: 0.140360996
-        Z: 0.294193238
+        X: 0.0541444123
+        Y: 0.371046424
+        Z: 0.358211279
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.0500000007
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: 0.529796481
+      Pitch: 0.589795828
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 0.870411038
+      Yaw: 0.335411549
     Saved: ~
 Window Geometry:
   Camera:

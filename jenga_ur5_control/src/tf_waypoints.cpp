@@ -47,12 +47,12 @@ int main(int argc, char** argv)
   tf_direct_above.setRotation(q);
 
   /* Arm position at a higher location on each side(tf name: roadmap_above0 ~
-   * roadmap_above3) is offset from roadmap_direct_above by 0.5m on the x or y
+   * roadmap_above3) is offset from roadmap_direct_above by 0.10m on the x or y
    * direction, and 0.045m on the z direction.
    * Frame is rotated in the appropriate direction to face the tool to the 
    * tower
    */
-  double xy_offset = 0.15;
+  double xy_offset = 0.12;
   int above_level_offset = 10;
   z_offset = 0.015 * above_level_offset;
   tf_above[0].setOrigin(tf::Vector3(xy_offset, 0, z_offset));

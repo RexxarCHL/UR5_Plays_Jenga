@@ -177,7 +177,8 @@ private:
   bool blockUntilToolFeedback(int feedback_code); // Block until a feedback from the tool is received
   void feedbackCallback(const jenga_msgs::EndEffectorFeedback::ConstPtr& msg);
   void probeCallback(const jenga_msgs::Probe::ConstPtr& msg);
-  void rangeCallback(const sensor_msgs::Range::ConstPtr& msg);
+  //void rangeCallback(const sensor_msgs::Range::ConstPtr& msg);
+  void rangeCallback(const jenga_msgs::Probe::ConstPtr& msg);
 
   // Initialize subscribers and link their callbacks 
   void initializeSubscriber();

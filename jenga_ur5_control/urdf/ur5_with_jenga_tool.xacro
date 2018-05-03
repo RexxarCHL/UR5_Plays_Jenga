@@ -92,7 +92,7 @@
 
   <joint name="jenga_tool_to_range_finder" type="fixed">
     <axis xyz="0 0 0" />
-    <origin xyz="0 -0.02942 0.059234" rpy="0 0 0" />
+    <origin xyz="0 -0.02642 0.059234" rpy="0 0 0" />
     <parent link="jenga_tool" />
     <child link="tool_range_finder" />
   </joint>

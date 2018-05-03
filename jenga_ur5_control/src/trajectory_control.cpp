@@ -48,8 +48,8 @@ void TrajCtrl::initializeSubscriber()
   // Tool related
   tool_feedback_subscriber_ = 
       nh_.subscribe<jenga_msgs::EndEffectorFeedback>("/tool/feedback", 1, &TrajCtrl::feedbackCallback, this);
-  tool_range_subscriber_ =
-      nh_.subscribe<sensor_msgs::Range>("/tool/range", 10, &TrajCtrl::rangeCallback, this);
+  tool_range_subscriber_ = nh_.subscribe<jenga_msgs::Probe>("/tool/range", 10, &TrajCtrl::rangeCallback, this);
+      //nh_.subscribe<sensor_msgs::Range>("/tool/range", 10, &TrajCtrl::rangeCallback, this);
   tool_probe_subscriber_ = 
       nh_.subscribe<jenga_msgs::Probe>("/tool/probe", 3, &TrajCtrl::probeCallback, this);
 }
@@ -1066,7 +1066,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGrippingAction(int mode)
     // ===> Move in 50mm + 5mm pull out safty margin = 55mm
     //tf::Vector3 target_translation = tf_gripper.getOrigin();
     //target_translation.setZ( target_translation.getZ() + 0.055 );
-    tf_target = tf::Transform( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, 0.055) );
+    tf_target = tf::Transform( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, 0.065) );
   }
   else // close long
   {
@@ -1652,7 +1652,8 @@ void TrajCtrl::probeCallback(const jenga_msgs::Probe::ConstPtr& msg)
   if (force > PROBE_FORCE_THRESHOLD_)
     action_client_->cancelGoal();
 }
-void TrajCtrl::rangeCallback(const sensor_msgs::Range::ConstPtr& msg)
+//void TrajCtrl::rangeCallback(const sensor_msgs::Range::ConstPtr& msg)
+void TrajCtrl::rangeCallback(const jenga_msgs::Probe::ConstPtr& msg)
 {
   if (!is_range_finding_)
     return;
@@ -1661,14 +1662,16 @@ void TrajCtrl::rangeCallback(const sensor_msgs::Range::ConstPtr& msg)
   int sequence_id = msg->header.seq;
   ROS_INFO("Processing rangeCallback for %d", sequence_id);
 
-  float range = msg->range;
+  float range = msg->data;
   ROS_INFO("range: %f", range);
   // Check if the range is in proper range. Pun intended.
+  /*
   if (range > msg->max_range || range < msg->min_range)
   {
     ROS_WARN("values < range_min or > range_max");
     return;
   }
+  */
 
   // Record the current tf and range data as a pair, for later analysis
   // TODO: this can be a little late?
