@@ -1616,7 +1616,6 @@ void TrajCtrl::publishToolCommand(int command_code)
  */
 bool TrajCtrl::blockUntilToolFeedback(int expected_feedback_code)
 {
-  #ifndef DEBUG
   ROS_INFO("Waiting for feedback %d from the tool...", expected_feedback_code);
   // Spin until flag is raised. Will wait forever
   // Flag is raised when feedbackCallback is called by the subscriber
@@ -1633,7 +1632,6 @@ bool TrajCtrl::blockUntilToolFeedback(int expected_feedback_code)
   ROS_INFO("Received %d", received_feedback_code);
 
   return (received_feedback_code == expected_feedback_code);
-  #endif
 }
 void TrajCtrl::feedbackCallback(const jenga_msgs::EndEffectorFeedback::ConstPtr& msg)
 {
