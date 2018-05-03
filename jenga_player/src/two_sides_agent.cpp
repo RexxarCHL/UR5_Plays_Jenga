@@ -24,7 +24,7 @@ TwoSidesAgent::TwoSidesAgent(ros::NodeHandle* nh)
   ROS_INFO("Waiting for subscribers to /jenga/target...");
   while(jenga_target_publisher_.getNumSubscribers() == 0)
   { // Will wait forever
-    ROS_INFO_DELAYED_THROTTLE(10, "Still waiting...");
+    ROS_INFO_DELAYED_THROTTLE(5, "Still waiting...");
     ros::spinOnce();
     poll_rate.sleep();
   }
@@ -75,6 +75,10 @@ void TwoSidesAgent::updateGameState()
  */
 int TwoSidesAgent::getSide()
 {
+  std::array<tf::Transform, 4> tf_side;
+  for (int i = 0; i < 4; ++i)
+    tf_side[i] = retrieveTransform(SIDE_FRAME_NAMES[i]);
+  
   return 0;
   //return level % 2; // for side 0 and 1
   // or level % 2 + 2 for side 2 and 3
@@ -132,6 +136,32 @@ void TwoSidesAgent::publishNextTarget()
 
   playing_level_ = target.level;
   playing_block_ = target.block;
+} 
+
+/**
+ * Wait and return the transfrom by the input name
+ */
+tf::Transform TwoSidesAgent::retrieveTransform(std::string frame_name)
+{
+  ROS_INFO("Retreiving frame: %s", frame_name.c_str());
+  
+  // Wait for the frame to spawn
+  bool frame_exists = tf_listener_.waitForTransform("base_link", frame_name, ros::Time(), ros::Duration(1.0));
+  while(!frame_exists)
+  {
+    ROS_WARN("Frame \"%s\" does not exist; retrying...", frame_name.c_str());
+    ros::spinOnce();
+    ros::Duration(1.0).sleep();
+    frame_exists = tf_listener_.waitForTransform("base_link", frame_name, ros::Time(), ros::Duration(1.0));
+  }
+
+  // Read the frame
+  tf::StampedTransform tf_stamped;
+  tf_listener_.lookupTransform("base_link", frame_name, ros::Time(), tf_stamped);
+  // Change from stamped transform to normal transform
+  tf::Transform transform(tf_stamped.getRotation(), tf_stamped.getOrigin());
+
+  return transform;
 }
 
 int main(int argc, char** argv)

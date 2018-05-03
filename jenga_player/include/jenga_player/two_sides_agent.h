@@ -12,6 +12,13 @@ public:
   TwoSidesAgent(ros::NodeHandle* nh);
   void publishNextTarget(); // Inherited
 private:
+  const std::string SIDE_FRAME_NAMES {
+    "roadmap_side0",
+    "roadmap_side1",
+    "roadmap_side2",
+    "roadmap_side3"
+  };
+
   tf::TransformListener tf_listener_;
   int playing_side_; // Store which side to push from 
   std::array<int, 2> side_levels_;
@@ -31,5 +38,10 @@ private:
    * Get which side to drive to from tf information of the tower.
    */
   int getSide();
+
+  /**
+   * Wait and return the transfrom by the input name
+   */
+  tf::Transform retrieveTransform(std::string frame_name);
 
 }; // TwoSidesAgent
