@@ -16,10 +16,10 @@
 #include <jenga_msgs/EndEffectorControl.h> // For controlling the arduino 
 #include <jenga_msgs/EndEffectorFeedback.h> // For feedbacks
 
-#define GRIPPER_OPEN_WIDE_POSITION 2050
+#define GRIPPER_OPEN_WIDE_POSITION 2060
 #define GRIPPER_OPEN_NARROW_POSITION 1500
-#define GRIPPER_CLOSE_NARROW_POSITION 1235
-#define GRIPPER_CLOSE_WIDE_POSITION 1915
+#define GRIPPER_CLOSE_NARROW_POSITION 1290
+#define GRIPPER_CLOSE_WIDE_POSITION 1990
 
 void commandCallback(const jenga_msgs::EndEffectorControl& msg);
 void publishFeedback(const uint8_t feedback_code);
