@@ -91,27 +91,6 @@ int main(int argc, char** argv)
   tf_side[3].setOrigin(tf::Vector3(0.0, -y_offset, 0.0));
   tf_side[3].setRotation(tf::Quaternion(0, 0, 0, 1));
 
-  /* The position where the block is supposed to be placed is at least 0.15m from the tower location.
-   * Rotated 45 degrees such that the block is in line with the base of the robot.
-   *
-   * This is based on workspace constraints in Wyman 170.
-   */
-
-  double block_place_offset_x = -0.3;
-  double block_place_offset_y = -0.1;
-  double block_above_offset = 0.15;
-  nh.setParam("block_above_offset", block_above_offset); // Store this for use in trajectory control
-  q.setRPY(0, 0, M_PI/4);
-  tf::Transform tf_block_place( q, tf::Vector3(block_place_offset_x, block_place_offset_y, 0) );
-  q.setRPY(0, 0, M_PI);
-  tf_block_place = tf_block_place * tf::Transform(q);
-
-  q.setRPY(M_PI, 0, 0);
-  tf::Transform tf_block_above( q, tf::Vector3(0, 0, block_above_offset) );
-
-  q.setRPY(M_PI/4, 0, 0);
-  tf::Transform tf_block_drop( q, tf::Vector3(0, block_above_offset, 0) );
-
   // Wait for ar_tower_location to exist
   tf_listener.waitForTransform("base_link", "ar_tower_location", ros::Time(), ros::Duration(5.0));
 
@@ -166,14 +145,6 @@ int main(int argc, char** argv)
         tf::StampedTransform(tf_side[2], ros::Time::now(), "roadmap_above2", "roadmap_side2") );
     tf_broadcaster.sendTransform(
         tf::StampedTransform(tf_side[3], ros::Time::now(), "roadmap_above3", "roadmap_side3") );
-
-    // Grip change related roadmap waypoints
-    tf_broadcaster.sendTransform(
-        tf::StampedTransform(tf_block_place, ros::Time::now(), "roadmap_tower", "roadmap_block_place"));
-    tf_broadcaster.sendTransform(
-        tf::StampedTransform(tf_block_above, ros::Time::now(), "roadmap_block_place", "roadmap_block_above"));
-    tf_broadcaster.sendTransform(
-        tf::StampedTransform(tf_block_drop, ros::Time::now(), "roadmap_block_above", "roadmap_block_drop"));
 
     // Publish at 10Hz
     rate.sleep();
