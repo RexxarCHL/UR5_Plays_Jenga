@@ -85,7 +85,7 @@ int main(int argc, char** argv)
   translation_to_tower[2] = tf::Vector3(-xy_offset,  xy_offset, 0); // Marker 3
   translation_to_tower[3] = tf::Vector3( xy_offset,  xy_offset, 0); // Marker 4
 
-  ros::Rate poll_rate(10);
+  ros::Rate rate(10);
   tf::Vector3 tower_translation;
   tf::Quaternion tower_rotation;
   while ( nh.ok() )
@@ -146,6 +146,9 @@ int main(int argc, char** argv)
     tf_broadcaster.sendTransform(
         tf::StampedTransform(tf_tower, ros::Time::now(), "base_link", "ar_tower_location") );
     publishMarkerAtTowerLocation();
+  
+    // Publish at 10Hz
+    rate.sleep();
   }
 
 }
