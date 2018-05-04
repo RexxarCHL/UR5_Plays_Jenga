@@ -15,8 +15,8 @@ TrajCtrl::TrajCtrl(ros::NodeHandle* nh): nh_(*nh)
   ROS_INFO("Instantiating Trajectory Control object");
 
   current_level_ = 18;
-  //top_orientation_ = true;
-  top_orientation_ = false;
+  top_orientation_ = true;
+  //top_orientation_ = false;
   top_status_ = std::vector<int> {0, 0, 0};
 
   //joint_state_.position = std::vector<double>(0.0, 6);
