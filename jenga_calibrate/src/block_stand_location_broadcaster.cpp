@@ -24,11 +24,13 @@ int main(int argc, char** argv)
      0.500000, 0.224144,  0.836516); // Data acquired from CAD 
   tf::Transform tf_marker_to_rest(rot, tf::Vector3(0.0929930, 0.0839667, 0.0345500));
 
-  // roadmap/block_rest to roadmap_block_place
-  tf::Transform tf_rest_to_place(tf::Quaternion::getIdentity(), tf::Vector3(0.03, 0.03, 0.01));
+  // roadmap/block_rest to roadmap_blockTwoSidesAgent
+  tf::Quaternion q; q.setRPY(-M_PI/2, 0, M_PI);
+  tf::Transform tf_rest_to_drop(q, tf::Vector3(0.03, 0.03, 0.01));
 
   // roadmap/block_rest to roadmap_block_pickup
-  tf::Transform tf_pickup(tf::Quaternion::getIdentity(), tf::Vector3(0.0, 0.0, 0.07));
+  q; q.setRPY(0, M_PI, M_PI/2);
+  tf::Transform tf_rest_to_pickup(q, tf::Vector3(0.0, 0.0, 0.07));
 
 
 	/* Wait for ar_marker_5 to spawn */
@@ -63,15 +65,16 @@ int main(int argc, char** argv)
     // Construct the transforms
     tf::Transform tf_marker( tf_stamped.getRotation(), tf_stamped.getOrigin() );
     tf::Transform tf_rest = tf_marker * tf_marker_to_rest;
-    tf::Transform tf_place = tf_rest * tf_rest_to_place;
+    tf::Transform tf_drop = tf_rest * tf_rest_to_drop;
+    tf::Transform tf_pickup = tf_rest * tf_rest_to_pickup;
     
     // Send the transforms
     tf_broadcaster.sendTransform(
         tf::StampedTransform(tf_rest, ros::Time::now(), "base_link", "roadmap_block_rest") );
     tf_broadcaster.sendTransform(
-        tf::StampedTransform(tf_place, ros::Time::now(), "base_link", "roadmap_block_place") );
+        tf::StampedTransform(tf_drop, ros::Time::now(), "base_link", "roadmap_block_drop") );
     tf_broadcaster.sendTransform(
-        tf::StampedTransform(tf_pickup, ros::Time::now(), "base_link", "roadmap/block_pickup") );
+        tf::StampedTransform(tf_pickup, ros::Time::now(), "base_link", "roadmap_block_pickup") );
   
     // Publish at 10Hz
     rate.sleep();
