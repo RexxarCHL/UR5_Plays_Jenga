@@ -43,7 +43,7 @@ int main(int argc, char** argv)
     frame_exists = tf_listener.waitForTransform("base_link", "ar_marker_5", ros::Time(), ros::Duration(1.0));
   }
 
-  ros::Rate rate(100);
+  ros::Rate rate(10);
   while( nh.ok() )
   {
     ros::Time now = ros::Time::now();
@@ -73,7 +73,7 @@ int main(int argc, char** argv)
     //tf_broadcaster.sendTransform(
     //    tf::StampedTransform(tf_pickup, ros::Time::now(), "base_link", "roadmap/block_pickup") );
   
-    // Publish at 100Hz
+    // Publish at 10Hz
     rate.sleep();
   }
 }
