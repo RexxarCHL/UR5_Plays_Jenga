@@ -1073,13 +1073,14 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGrippingAction(int mode)
   else // close long
   {
     // Calculate the offset
-    tf::Transform tf_block_above = retrieveTransform("roadmap_block_above");
-    tf::Transform tf_block_place = retrieveTransform("roadmap_block_place");
+    //tf::Transform tf_block_pickup = retrieveTransform("roadmap_block_pickup");
+    //tf::Transform tf_block_rest = retrieveTransform("roadmap_block_rest");
 
-    double above_offset = tf_block_above.getOrigin().getZ() - tf_block_place.getOrigin().getZ();
+    //double offset = tf_block_pickup.getOrigin().getZ() - tf_block_rest.getOrigin().getZ();
     tf_target = tf::Transform( 
         tf::Quaternion::getIdentity(), 
-        tf::Vector3(0, 0, above_offset - GRIPPER_FRAME_TIP_OFFSET_) );
+        tf::Vector3(0, 0, 0.06) );
+        //tf::Vector3(0, 0, above_offset - GRIPPER_FRAME_TIP_OFFSET_) );
   }
 
   tf_target = compensateEELinkToGripper(tf_gripper * tf_target);
@@ -1276,20 +1277,21 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGripChangeAction()
 
   /* Retrieve necessary transformations and calculate necessary parameters */
   tf::Transform tf_block_drop = retrieveTransform("roadmap_block_drop");
-  tf::Transform tf_block_above = retrieveTransform("roadmap_block_above");
+  tf::Transform tf_block_pickup = retrieveTransform("roadmap_block_pickup");
 
   tf_block_drop = compensateEELinkToGripper(tf_block_drop);
-  tf_block_above = compensateEELinkToGripper(tf_block_above);
+  tf_block_pickup = compensateEELinkToGripper(tf_block_pickup);
 
   tf_broadcaster_.sendTransform(
       tf::StampedTransform(tf_block_drop, ros::Time::now(), "base_link", "tf_block_drop_ee_link"));
 
   /* Move from current position (assumed at home) to drop location */
   // Get a suitable configuration for target transform
-  TrajCtrl::Configuration config_approximate {2.12820, -0.92279, 1.49792, -1.17135, -1.73198, -3.14159};
-  TrajCtrl::Configuration config_above = pickMinimumEffortConfiguration( getInverseConfigurations(tf_block_above), config_approximate );
-  //TrajCtrl::Configuration config_above = eliminateConfigurations( getInverseConfigurations(tf_block_above) );
-  TrajCtrl::Configuration config_drop = pickMinimumEffortConfiguration( getInverseConfigurations(tf_block_drop), config_above );
+  std::vector<TrajCtrl::Configuration> v = getInverseConfigurations(tf_block_pickup);
+  //driveToEveryConfig(v);
+  TrajCtrl::Configuration config_pickup = eliminateConfigurations(v, tf_block_pickup);
+  //TrajCtrl::Configuration config_drop = pickMinimumEffortConfiguration( getInverseConfigurations(tf_block_drop), config_pickup );
+  TrajCtrl::Configuration config_drop = eliminateConfigurations(getInverseConfigurations(tf_block_drop), tf_block_drop);
 
   // Initialize trajectory
   trajectory_msgs::JointTrajectory trajectory;
@@ -1304,19 +1306,21 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGripChangeAction()
   trajectory.points.push_back(joints_current);
 
   // Move pan and wrist 3 joints first
+  /*
   trajectory_msgs::JointTrajectoryPoint joints_intermediate;
   joints_intermediate.positions = joints_current.positions;
   joints_intermediate.positions[0] = config_drop[0];
   joints_intermediate.positions[5] = config_drop[5];
   joints_intermediate.velocities = zero_vector;
-  joints_intermediate.time_from_start = ros::Duration(2.0);
+  joints_intermediate.time_from_start = ros::Duration(3.0);
   trajectory.points.push_back(joints_intermediate);
+  */
 
   // Move to drop location
   trajectory_msgs::JointTrajectoryPoint joints_drop;
   joints_drop.positions = config_drop;
   joints_drop.velocities = zero_vector;
-  joints_drop.time_from_start = ros::Duration(5.0);
+  joints_drop.time_from_start = ros::Duration(6.0);
   trajectory.points.push_back(joints_drop);
 
   // Send the trajectory
@@ -1337,18 +1341,18 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGripChangeAction()
 
   /* Move to the position above the dropped block */
   // Reset the trajectory points
-  trajectory.points = std::vector<trajectory_msgs::JointTrajectoryPoint>();
+  trajectory.points.clear();
 
   // Start with current position
   joints_current.positions = getCurrentJointState().position;
   trajectory.points.push_back(joints_current);
 
   // Move to the position above the block
-  trajectory_msgs::JointTrajectoryPoint joints_above;
-  joints_above.positions = config_above;
-  joints_above.velocities = zero_vector;
-  joints_above.time_from_start = ros::Duration(2.0);
-  trajectory.points.push_back(joints_above);
+  trajectory_msgs::JointTrajectoryPoint joints_pickup;
+  joints_pickup.positions = config_pickup;
+  joints_pickup.velocities = zero_vector;
+  joints_pickup.time_from_start = ros::Duration(5.0);
+  trajectory.points.push_back(joints_pickup);
 
   // Send the trajectory
   goal.trajectory = trajectory; 
@@ -1717,6 +1721,7 @@ void TrajCtrl::debugTestFlow()
 
 void TrajCtrl::debugTestFunctions()
 {
+  /*
   moveToHomePosition(5);
   for (int side = 1; side < 4; ++side)
     for(int level = 5; level < 18; ++level)
@@ -1729,7 +1734,11 @@ void TrajCtrl::debugTestFunctions()
           debugBreak();
           moveToHomePosition(side);
       }
-
+  */
+  moveToHomePosition(5);
+  debugBreak();
+  executeGripChangeAction();
+  debugBreak();
 }
 
 void TrajCtrl::driveToEveryConfig(std::vector<TrajCtrl::Configuration> configs)
@@ -1769,7 +1778,6 @@ void TrajCtrl::saveData()
 {
   ROS_INFO("SAVING DATA");
   ros::spinOnce(); // Process the callback queue one last time
-  debugBreak();
 
   std::ofstream out_file("/home/clin110/data/range_finder_data.txt");
 

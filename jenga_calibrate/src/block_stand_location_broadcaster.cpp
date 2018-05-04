@@ -25,12 +25,12 @@ int main(int argc, char** argv)
   tf::Transform tf_marker_to_rest(rot, tf::Vector3(0.0929930, 0.0839667, 0.0345500));
 
   // roadmap/block_rest to roadmap_blockTwoSidesAgent
-  tf::Quaternion q; q.setRPY(-M_PI/2, 0, M_PI);
-  tf::Transform tf_rest_to_drop(q, tf::Vector3(0.03, 0.03, 0.01));
+  tf::Quaternion q; q.setRPY(-M_PI/2-M_PI/20, -M_PI/10, M_PI);
+  tf::Transform tf_rest_to_drop(q, tf::Vector3(0.05, 0.05, 0.03));
 
   // roadmap/block_rest to roadmap_block_pickup
   q; q.setRPY(0, M_PI, M_PI/2);
-  tf::Transform tf_rest_to_pickup(q, tf::Vector3(0.0, 0.0, 0.07));
+  tf::Transform tf_rest_to_pickup(q, tf::Vector3(0.01, 0.0, 0.07));
 
 
 	/* Wait for ar_marker_5 to spawn */
