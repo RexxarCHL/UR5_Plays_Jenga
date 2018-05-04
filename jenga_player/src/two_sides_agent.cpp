@@ -43,7 +43,7 @@ void TwoSidesAgent::targetResultCallback(const jenga_msgs::JengaTargetResult::Co
     updateGameState();
   }
 
-  if (side_levels_[playing_side_ % 2] < current_tower_level_ - 1)
+  if (side_levels_[playing_side_ % 2] < current_tower_level_ - 2)
     publishNextTarget(); // Next move is legal. OK to publish
   else
   {
@@ -117,14 +117,16 @@ void TwoSidesAgent::publishNextTarget()
   target.header.stamp = ros::Time::now();
   target.side = getSide(); // Check if the tower orientation is changed drastically
 
-  // Initialize the target message
-  if (playing_result_) // If previous action is successful
+  // Robot will try to play block 1 -> 0 -> -1
+
+  // If previous action is successful AND middle or right block is extracted
+  if (playing_result_ && playing_block_ < 1)
   {
     // Go to next level and try to push the middle block
     target.level = playing_level_ + 2; // +2 because we want to play blocks on the same side
     target.block = 0; // Aim for the middle block
   }
-  else // If previous action is NOT successful
+  else // If previous action is NOT successful OR  action is successful and a side block is played
   {
     // It is very likely that the blocks on the sides are loose
     if (playing_block_ != -1) // Previous block is not the left block 
