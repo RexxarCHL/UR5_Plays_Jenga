@@ -24,3 +24,6 @@ catkin_package(
 include_directories(${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS})
 add_executable(tower_location_broadcaster src/tower_location_broadcaster.cpp)
 target_link_libraries(tower_location_broadcaster ${catkin_LIBRARIES})
+
+add_executable(block_stand_location_broadcaster src/block_stand_location_broadcaster.cpp)
+target_link_libraries(block_stand_location_broadcaster ${catkin_LIBRARIES})
