@@ -12,7 +12,7 @@ TwoSidesAgent::TwoSidesAgent(ros::NodeHandle* nh)
   top_block_count_ = 0;
   playing_side_ = getSide();
   side_levels_[0] = START_TARGET_LEVEL_;
-  side_levels_[1] = START_TARGET_LEVEL_;
+  side_levels_[1] = START_TARGET_LEVEL_ + 1;
   side_blocks_[0] = 0;
   side_blocks_[1] = 0;
   playing_level_ = side_levels_[playing_side_ % 2] - 2;
