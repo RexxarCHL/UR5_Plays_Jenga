@@ -256,16 +256,16 @@ bool TrajCtrl::playBlock(int side, int level, int block)
   debugBreak();
 
   /* Change the grip fron short side to long side */
-  executeGripChangeAction();
+  //executeGripChangeAction();
 
-  ROS_WARN("Grip change is done. Return home is next...");
-  debugBreak();
+  //ROS_WARN("Grip change is done. Return home is next...");
+  //debugBreak();
 
   /* Return to up position */
-  moveToHomePosition(5);
+  //moveToHomePosition(5);
 
-  ROS_WARN("Moving back to home position is done. Move to block placing position is next...");
-  debugBreak();
+  //ROS_WARN("Moving back to home position is done. Move to block placing position is next...");
+  //debugBreak();
 
   /* Move to block placing position */
   moveToPlaceBlockPosition();
