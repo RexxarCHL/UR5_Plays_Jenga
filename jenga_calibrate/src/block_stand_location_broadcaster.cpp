@@ -28,7 +28,7 @@ int main(int argc, char** argv)
   tf::Transform tf_rest_to_place(tf::Quaternion::getIdentity(), tf::Vector3(0.03, 0.03, 0.01));
 
   // roadmap/block_rest to roadmap_block_pickup
-  //tf::Transform tf_pickup(tf::Quaternion::getIdentity(), tf::Vector3(0.0, 0.0, 0.01));
+  tf::Transform tf_pickup(tf::Quaternion::getIdentity(), tf::Vector3(0.0, 0.0, 0.07));
 
 
 	/* Wait for ar_marker_5 to spawn */
@@ -70,8 +70,8 @@ int main(int argc, char** argv)
         tf::StampedTransform(tf_rest, ros::Time::now(), "base_link", "roadmap_block_rest") );
     tf_broadcaster.sendTransform(
         tf::StampedTransform(tf_place, ros::Time::now(), "base_link", "roadmap_block_place") );
-    //tf_broadcaster.sendTransform(
-    //    tf::StampedTransform(tf_pickup, ros::Time::now(), "base_link", "roadmap/block_pickup") );
+    tf_broadcaster.sendTransform(
+        tf::StampedTransform(tf_pickup, ros::Time::now(), "base_link", "roadmap/block_pickup") );
   
     // Publish at 10Hz
     rate.sleep();
