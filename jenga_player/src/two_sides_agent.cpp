@@ -76,12 +76,38 @@ void TwoSidesAgent::updateGameState()
 int TwoSidesAgent::getSide()
 {
   std::array<tf::Transform, 4> tf_side;
+  std::array<double, 4> angles, distances;
+  double min_distance = 999999.99;
+  double delta = 0.001;
+  int min_index = -1;
   for (int i = 0; i < 4; ++i)
+  {
     tf_side[i] = retrieveTransform(SIDE_FRAME_NAMES[i]);
-  
-  return 0;
-  //return level % 2; // for side 0 and 1
-  // or level % 2 + 2 for side 2 and 3
+    tf::Vector3 p = tf_side[i].getOrigin();
+    double x = p.getX();
+    double y = p.getY();
+    angles[i] = std::atan2(y, x);
+    distances[i] = std::sqrt(x*x + y*y);
+
+    if (distances[i] < min_distance)
+    {
+      min_distance = distances[i];
+      min_index = i;
+    }
+  }
+
+  // Do another pass to check for equal distances, albeit a very small chance
+  for (int i = 0; i < 4; ++i)
+    if (i != min_index && distances[i] < min_distance + delta && distances[i] > min_distance - delta)
+    {
+      // In case of equal distances, choose the one with smaller angle
+      if(angles[i] < angles[min_index])
+        min_index = i;
+    }
+
+  ROS_INFO("Returning side: %d", (min_index + 1) % 2);
+  // Return the side that is NOT the min distance side
+  return (min_index + 1) % 2;
 }
 
 // Try to play every legal middle block from the tower.
@@ -112,7 +138,7 @@ void TwoSidesAgent::publishNextTarget()
     else // Previous block is the left block
     {
       // All block on this level is probed and not removeable. Move to next level
-      target.level = playing_side_ + 2; // +2 because we want to play blocks on the same side
+      target.level = playing_level_ + 2; // +2 because we want to play blocks on the same side
       target.block = 0;
     }
   }
