@@ -17,7 +17,7 @@ TrajCtrl::TrajCtrl(ros::NodeHandle* nh): nh_(*nh)
   current_level_ = 18;
   //top_orientation_ = true;
   top_orientation_ = false;
-  top_status_ = std::vector<int> {1, 1, 1};
+  top_status_ = std::vector<int> {0, 0, 0};
 
   //joint_state_.position = std::vector<double>(0.0, 6);
 
@@ -228,7 +228,8 @@ bool TrajCtrl::playBlock(int side, int level, int block)
   /* Use range finder to find center of the block */
   executeRangeFindingAction();
 
-  saveData();
+  saveData(range_finder_data_, "range_finder");
+  range_finder_data_.clear();
 
   ROS_WARN("Executed range finding action. Move to gripping position is next...");
   debugBreak();
@@ -256,16 +257,16 @@ bool TrajCtrl::playBlock(int side, int level, int block)
   debugBreak();
 
   /* Change the grip fron short side to long side */
-  //executeGripChangeAction();
+  executeGripChangeAction();
 
-  //ROS_WARN("Grip change is done. Return home is next...");
-  //debugBreak();
+  ROS_WARN("Grip change is done. Return home is next...");
+  debugBreak();
 
   /* Return to up position */
-  //moveToHomePosition(5);
+  moveToHomePosition(5);
 
-  //ROS_WARN("Moving back to home position is done. Move to block placing position is next...");
-  //debugBreak();
+  ROS_WARN("Moving back to home position is done. Move to block placing position is next...");
+  debugBreak();
 
   /* Move to block placing position */
   moveToPlaceBlockPosition();
@@ -1079,7 +1080,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGrippingAction(int mode)
     //double offset = tf_block_pickup.getOrigin().getZ() - tf_block_rest.getOrigin().getZ();
     tf_target = tf::Transform( 
         tf::Quaternion::getIdentity(), 
-        tf::Vector3(0, 0, 0.06) );
+        tf::Vector3(0, 0, 0.065) );
         //tf::Vector3(0, 0, above_offset - GRIPPER_FRAME_TIP_OFFSET_) );
   }
 
@@ -1504,12 +1505,13 @@ actionlib::SimpleClientGoalState TrajCtrl::moveToPlaceBlockPosition()
   // true: x direction; false: rotate z 90 deg, then x direction
   tf::Transform tf_target;
   int block = checkGameState(); // Get empty block slot
+  ROS_INFO("block = %d", block);
   if (top_orientation_)
-    tf_target = tf::Transform( tf::Quaternion::getIdentity(), tf::Vector3(0, block * 0.015, 0) );
+    tf_target = tf::Transform( tf::Quaternion::getIdentity(), tf::Vector3(0, block * 0.025, 0) );
   else
   {
     tf::Quaternion q; q.setRPY(0, 0, M_PI/2); // Rotate +z 90 degrees
-    tf_target = tf::Transform( q, tf::Vector3(block * 0.015, 0, 0) );
+    tf_target = tf::Transform( q, tf::Vector3(block * 0.025, 0, 0) );
   }
 
   tf_target = compensateEELinkToGripper(tf_direct_above * tf_target);
@@ -1684,8 +1686,7 @@ void TrajCtrl::rangeCallback(const jenga_msgs::Probe::ConstPtr& msg)
   tf::StampedTransform tf_stamped;
   tf_listener_.lookupTransform("base_link", "tool_range_finder", ros::Time(), tf_stamped);
   tf::Transform tf_range_finder(tf_stamped.getBasis(), tf_stamped.getOrigin());
-  std::pair<tf::Transform, float> current_data(
-      tf::Transform( tf_stamped.getBasis(), tf_stamped.getOrigin() ), range );
+  std::pair<double, float> current_data(tf_stamped.getOrigin().getY(), range);
 
   // Store the pair for later analysis
   range_finder_data_.push_back(current_data);
@@ -1774,37 +1775,39 @@ void TrajCtrl::driveToEveryConfig(std::vector<TrajCtrl::Configuration> configs)
   }
 }
 
-void TrajCtrl::saveData()
+void TrajCtrl::saveData(std::vector<std::pair<double, float>> v, std::string file_name)
 {
   ROS_INFO("SAVING DATA");
   ros::spinOnce(); // Process the callback queue one last time
 
-  std::ofstream out_file("/home/clin110/data/range_finder_data.txt");
+  std::string output_name = "/home/clin110/data/" + file_name + "-" + std::to_string(ros::Time::now().sec) + ".txt";
+  //std::ofstream out_file("/home/clin110/data/range_finder_data.txt");
+  std::ofstream out_file(output_name);
 
   if (out_file.is_open())
   {
-    ROS_INFO("File opened");
+    ROS_INFO("File opened at %s", output_name.c_str());
 
-    std::ostringstream tf_data, range_data;
-    tf_data << "{\"tf\": [";
-    range_data << "{\"range\": [";
+    std::ostringstream first_data, second_data;
+    first_data << "{\"first\": [";
+    second_data << "{\"second\": [";
 
-    for (auto it = range_finder_data_.begin(); it != range_finder_data_.end(); ++it)
+    for (auto it = v.begin(); it != v.end(); ++it)
     {
-      tf_data << it->first.getOrigin().getY();
-      range_data << it->second;
-      if ( (it + 1) != range_finder_data_.end() )
+      first_data << it->first;
+      second_data << it->second;
+      if ( (it + 1) != v.end() )
       {
-        tf_data << ",";
-        range_data << ",";
+        first_data << ",";
+        second_data << ",";
       }
     }
-    tf_data << "]}";
-    range_data << "]}";
-    out_file << "" << tf_data.str() << "\n\n" << range_data.str() << "\n";
+    first_data << "]}";
+    second_data << "]}";
+    out_file << "" << first_data.str() << "\n\n" << second_data.str() << "\n";
     out_file.close();
 
-    ROS_INFO("Written %lu data points", range_finder_data_.size());
+    ROS_INFO("Written %lu data points", v.size());
     // Use strcu2array(jsondecode(str)) in matlab
     debugBreak();
   }

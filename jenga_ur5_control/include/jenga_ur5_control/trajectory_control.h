@@ -171,7 +171,7 @@ private:
   bool is_busy_;
   bool is_probing_;
   bool is_range_finding_;
-  std::vector<std::pair<tf::Transform, float>> range_finder_data_;
+  std::vector<std::pair<double, float>> range_finder_data_;
 
   // Tool related
   bool tool_feedback_flag_; // Flag to indicate if there is a new message available
@@ -357,7 +357,7 @@ private:
   void debugPrintJoints(Configuration joints);
   void debugBreak();
   void driveToEveryConfig(std::vector<Configuration> configs);
-  void saveData();
+  void saveData(std::vector<std::pair<double, float>> v, std::string file_name);
 }; // class TrajCtrl
 
 #endif // JENGA_TRAJ_CTRL_H
