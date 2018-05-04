@@ -24,6 +24,9 @@
 	<!-- Tower location from AR markers -->
 	<node name="tower_location_broadcaster" pkg="jenga_calibrate" type="tower_location_broadcaster" respawn="true"/>
 
+	<!-- Block stand location from AR Marker 5 -->
+	<node name="block_stand_location_broadcaster" pkg="jenga_calibrate" type="block_stand_location_broadcaster" respawn="true"/>
+	
 	<!-- Bringup UR5 -->
 	<include file="$(find jenga_ur5_control)/launch/jenga_ur5_control_interface.launch" />
 
