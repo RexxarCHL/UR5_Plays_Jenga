@@ -1074,7 +1074,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGrippingAction(int mode)
     // ===> Move in 50mm + 5mm pull out safty margin = 55mm
     //tf::Vector3 target_translation = tf_gripper.getOrigin();
     //target_translation.setZ( target_translation.getZ() + 0.055 );
-    tf_target = tf::Transform( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, 0.065) );
+    tf_target = tf::Transform( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, 0.060) );
   }
   else // close long
   {
