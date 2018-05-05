@@ -1601,6 +1601,7 @@ int TrajCtrl::checkGameState()
     current_level_ += 1; // Increment level
     top_orientation_ = !top_orientation_; // Change orientation
     std::fill( top_status_.begin(), top_status_.end(), 0 ); // Reset top status
+    top_status_[0] = 1;
 
     block = -1; // Set block number
   }
@@ -1853,7 +1854,7 @@ int main(int argc, char** argv){
   TrajCtrl trajectory_control(&nh);
 
   ros::spinOnce();
-  trajectory_control.debugTestFunctions();
+  //trajectory_control.debugTestFunctions();
 
   ROS_INFO("Initialization complete. Spinning...");
 
