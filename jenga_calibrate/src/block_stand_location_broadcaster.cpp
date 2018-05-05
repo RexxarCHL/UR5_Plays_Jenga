@@ -8,6 +8,16 @@
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
 
+using namespace std;
+
+// Exponential moving average parameters
+const int ALPHA_INITIAL = 0.9;
+const int ALPHA_LOOP = 0.1;
+const int LEARNING_ITERATIONS = 100000;
+
+const double MAX_P_DIFF = 3.0;
+const double MAX_Q_DIFF = 0.5;
+
 int main(int argc, char** argv)
 {
 	ros::init(argc, argv, "block_stand_tf_broadcaster");
@@ -43,9 +53,26 @@ int main(int argc, char** argv)
     frame_exists = tf_listener.waitForTransform("base_link", "ar_marker_5", ros::Time(), ros::Duration(1.0));
   }
 
+  tf::Vector3 t(0, 0, 0), prev_t, diff_t; // current, previous, and difference of translation of the marker
+  q.setRPY(0, 0, 0); // current rotation of the marker (reuse)
+  tf::Quaternion prev_q, diff_q; // previous and difference of rotation of the marker
+  tf::Matrix3x3 rot_mtx; // rotation matrix, for extracting rpy
+  double r{0.0}, prev_r;
+  double p{0.0}, prev_p;
+  double y{0.0}, prev_y;
+  int learning_counter = 0; // Used to switch from alpha_initial to alpha_loop
+  double alpha = ALPHA_INITIAL;
+
   ros::Rate rate(10);
   while( nh.ok() )
   {
+    // Store variables for this iteration
+    prev_t = t;
+    prev_q = q;
+    prev_r = r;
+    prev_p = p;
+    prev_y = y;
+
     ros::Time now = ros::Time::now();
     frame_exists = tf_listener.waitForTransform("base_link", "ar_marker_5", now, ros::Duration(0.5));
 
@@ -60,8 +87,42 @@ int main(int argc, char** argv)
     // Get the marker pose
     tf_listener.lookupTransform("base_link", "ar_marker_5", now, tf_stamped);
 
+    // Moving average updates for the marker pose
+    q = tf_stamped.getRotation();
+    t = tf_stamped.getOrigin();
+    diff_q = prev_q - diff_q;
+    diff_t = prev_t - diff_t;
+
+    if (diff_q.length() > MAX_Q_DIFF || diff_t.length() > MAX_P_DIFF)
+    {
+      // Pose drastically changed; reset counter to learn the new positions
+      ROS_WARN("[block stand] POSE CHANGED!");
+      learning_counter = 0; // reset counter to use alpha_initial
+    }
+
+    if (learning_counter == LEARNING_ITERATIONS)
+    {
+      alpha = ALPHA_INITIAL;
+      learning_counter++;
+    }
+    else
+      alpha = ALPHA_LOOP;
+
+    if(learning_counter > 0) // Update except on the 1st iteration
+    {
+      rot_mtx.setRotation(q);
+      rot_mtx.getRPY(r, p, y);
+
+      t = alpha * t + (1.0 - alpha) * prev_t;
+      r = alpha * r + (1.0 - alpha) * prev_r;
+      p = alpha * p + (1.0 - alpha) * prev_p;
+      y = alpha * y + (1.0 - alpha) * prev_y;
+
+      q.setRPY(r, p, y);
+    }
+
     // Construct the transforms
-    tf::Transform tf_marker( tf_stamped.getRotation(), tf_stamped.getOrigin() );
+    tf::Transform tf_marker(q, t);
     tf::Transform tf_rest = tf_marker * tf_marker_to_rest;
     tf::Transform tf_drop = tf_rest * tf_rest_to_drop;
     tf::Transform tf_pickup = tf_rest * tf_rest_to_pickup;
