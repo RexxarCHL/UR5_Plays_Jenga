@@ -66,7 +66,7 @@ int main(int argc, char** argv)
   ros::Rate rate(10);
   while( nh.ok() )
   {
-    // Store variables for this iteration
+    // Store variables on the previous iteration
     prev_t = t;
     prev_q = q;
     prev_r = r;
