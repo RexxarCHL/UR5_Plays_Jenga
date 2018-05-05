@@ -105,11 +105,13 @@ void publishRangeMessage()
   uint8_t range = range_finder.readRange();
   uint8_t status = range_finder.readRangeStatus();
 
-  if(status == VL6180X_ERROR_NONE){
-    sensor_msg.header.stamp = nh.now();
+  sensor_msg.header.stamp = nh.now();
+
+  if(status == VL6180X_ERROR_NONE)
     sensor_msg.data = (float)range / 10; // cm
-    range_publisher.publish(&sensor_msg);
-  }
+  else
+    sensor_msg.data = 10.0;
+  range_publisher.publish(&sensor_msg);
 }
 
 void publishProbeMessage()
