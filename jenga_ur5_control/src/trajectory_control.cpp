@@ -968,7 +968,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeProbingAction()
   // ===> Move 100mm (0.1m) in total
   //tf::Vector3 target_translation = tf_probe.getOrigin();
   //target_translation.setZ( target_translation.getZ() + 0.1 );
-  tf::Transform tf_target( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, 0.1) );
+  tf::Transform tf_target( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, 0.125) );
 
   tf_target = compensateEELinkToProbe(tf_probe * tf_target);
 
@@ -1074,7 +1074,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGrippingAction(int mode)
     // ===> Move in 50mm + 5mm pull out safty margin = 55mm
     //tf::Vector3 target_translation = tf_gripper.getOrigin();
     //target_translation.setZ( target_translation.getZ() + 0.055 );
-    tf_target = tf::Transform( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, 0.060) );
+    tf_target = tf::Transform( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, 0.050) );
   }
   else // close long
   {
@@ -1566,7 +1566,7 @@ actionlib::SimpleClientGoalState TrajCtrl::moveToPlaceBlockPosition()
   trajectory_msgs::JointTrajectoryPoint joints_target;
   joints_target.positions = config_target;
   joints_target.velocities = zero_vector;
-  joints_target.time_from_start = ros::Duration(2.0);
+  joints_target.time_from_start = ros::Duration(5.0);
   trajectory.points.push_back(joints_target);
   ROS_INFO("[executePlaceBlockAction] Point 2:");
   debugPrintJoints(joints_target.positions);
@@ -1845,7 +1845,7 @@ void TrajCtrl::saveData(std::vector<std::pair<double, float>> v, std::string fil
 
     ROS_INFO("Written %lu data points", v.size());
     // Use strcu2array(jsondecode(str)) in matlab
-    debugBreak();
+    //debugBreak();
   }
 }
 
