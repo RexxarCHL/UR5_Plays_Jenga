@@ -199,19 +199,19 @@ bool TrajCtrl::playBlock(int side, int level, int block)
   moveToActionPosition(PROBE, side, level, block);
 
   ROS_WARN("Moved to probing position. Exectue probing is next...");
-  debugBreak();
+  //debugBreak();
 
   /* Probe the block */
   actionlib::SimpleClientGoalState status = executeProbingAction();
 
   ROS_WARN("Probing done. Moving back to home position is next...");
-  debugBreak();
+  //debugBreak();
 
   /* Return to up position */
   moveToHomePosition(side);
 
   ROS_WARN("Returned home. Branching...");
-  debugBreak();
+  //debugBreak();
 
   /* See if the probing action succeed */
   if (status != actionlib::SimpleClientGoalState::StateEnum::SUCCEEDED)
@@ -221,14 +221,14 @@ bool TrajCtrl::playBlock(int side, int level, int block)
     return false; // Probing failed: the block can not be safely removed.
   }
   ROS_WARN("Action succeed. Moving to range finding position is next...");
-  debugBreak();
+  //debugBreak();
 
   /* Move arm to range finding position on the other side */
   int other_side = (side + 2) % 4;
   moveToActionPosition(RANGE_FINDER, other_side, level, block);
 
   ROS_WARN("Moved to range finding position. Execute action is next...");
-  debugBreak();
+  //debugBreak();
 
   /* Use range finder to find center of the block */
   executeRangeFindingAction();
@@ -237,7 +237,7 @@ bool TrajCtrl::playBlock(int side, int level, int block)
   range_finder_data_.clear();
 
   ROS_WARN("Executed range finding action. Move to gripping position is next...");
-  debugBreak();
+  //debugBreak();
 
   /* Find center of the block and compensate accordingly */
   // TODO
@@ -247,43 +247,43 @@ bool TrajCtrl::playBlock(int side, int level, int block)
   moveToActionPosition(GRIPPER, other_side, level, block);
 
   ROS_WARN("Moved to gripping position. Gripping action is next...");
-  debugBreak();
+  //debugBreak();
 
   /* Grip the block and pull it out */
   executeGrippingAction(GRIPPER_CLOSE_NARROW); // Gripping action will auto return to home position
 
   ROS_WARN("Gripped. Return home is next...");
-  debugBreak();
+  //debugBreak();
 
   /* Return to up position */
   moveToHomePosition(other_side);
 
   ROS_WARN("Moved back to home position is done. Grip change is next...");
-  debugBreak();
+  //debugBreak();
 
   /* Change the grip fron short side to long side */
   executeGripChangeAction();
 
   ROS_WARN("Grip change is done. Return home is next...");
-  debugBreak();
+  //debugBreak();
 
   /* Return to up position */
   moveToHomePosition(5);
 
   ROS_WARN("Moving back to home position is done. Move to block placing position is next...");
-  debugBreak();
+  //debugBreak();
 
   /* Move to block placing position */
   moveToPlaceBlockPosition();
 
   ROS_WARN("Moved to block placing position. Placing block is next...");
-  debugBreak();
+  //debugBreak();
 
   /* Place the block */
   executePlaceBlockAction();
 
   ROS_WARN("Placed the block. Returning home is next...");
-  debugBreak();
+  //debugBreak();
 
   /* Return to up position */
   moveToHomePosition(5);
@@ -1125,6 +1125,8 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGrippingAction(int mode)
   control_msgs::FollowJointTrajectoryGoal goal;
   goal.trajectory = trajectory;
   executeTrajectoryGoal(goal); 
+
+  debugBreak();
 
   /* Close gripper */
   // Prepare and send the command message
