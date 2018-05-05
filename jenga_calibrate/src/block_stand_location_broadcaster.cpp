@@ -11,12 +11,12 @@
 using namespace std;
 
 // Exponential moving average parameters
-const int ALPHA_INITIAL = 0.9;
-const int ALPHA_LOOP = 0.1;
-const int LEARNING_ITERATIONS = 100000;
+const double ALPHA_INITIAL = 0.9;
+const double ALPHA_LOOP = 0.1;
+const int LEARNING_ITERATIONS = 100;
 
-const double MAX_P_DIFF = 3.0;
-const double MAX_Q_DIFF = 0.5;
+const double MAX_P_DIFF = 0.001;
+const double MAX_Q_DIFF = 0.001;
 
 int main(int argc, char** argv)
 {
@@ -86,19 +86,20 @@ int main(int argc, char** argv)
 
     // Get the marker pose
     tf_listener.lookupTransform("base_link", "ar_marker_5", now, tf_stamped);
-
-    // Moving average updates for the marker pose
     q = tf_stamped.getRotation();
     t = tf_stamped.getOrigin();
-    diff_q = prev_q - diff_q;
-    diff_t = prev_t - diff_t;
 
+    // Check if pose is changed
+    diff_q = prev_q - q;
+    diff_t = prev_t - t;
     if (diff_q.length() > MAX_Q_DIFF || diff_t.length() > MAX_P_DIFF)
     {
       // Pose drastically changed; reset counter to learn the new positions
       ROS_WARN("[block stand] POSE CHANGED!");
+      ROS_WARN("[block stand] %f, %f", diff_q.length(), diff_t.length());
       learning_counter = 0; // reset counter to use alpha_initial
     }
+    ROS_WARN("diff: %f, %f", diff_q.length(), diff_t.length());
 
     if (learning_counter < LEARNING_ITERATIONS)
     {
@@ -106,12 +107,17 @@ int main(int argc, char** argv)
       learning_counter++;
     }
     else
-      alpha = ALPHA_LOOP;
-
-    if(learning_counter > 0) // Update except on the 1st iteration
     {
-      rot_mtx.setRotation(q);
-      rot_mtx.getRPY(r, p, y);
+      ROS_INFO("loop");
+      alpha = ALPHA_LOOP;
+    }
+
+    rot_mtx.setRotation(q);
+    rot_mtx.getRPY(r, p, y);
+    if(learning_counter > 1) // Update except on the 1st iteration
+    {
+      ROS_INFO("current : x: %f, y:%f, z: %f, r:%f, p:%f, y:%f", t.getX(), t.getY(), t.getZ(), r, p, y);
+      ROS_INFO("previous: x: %f, y:%f, z: %f, r:%f, p:%f, y:%f", prev_t.getX(), prev_t.getY(), prev_t.getZ(), prev_r, prev_p, prev_y);
 
       t = alpha * t + (1.0 - alpha) * prev_t;
       r = alpha * r + (1.0 - alpha) * prev_r;
@@ -120,6 +126,8 @@ int main(int argc, char** argv)
 
       q.setRPY(r, p, y);
     }
+
+     ROS_INFO("after : x: %f, y:%f, z: %f, r:%f, p:%f, y:%f", t.getX(), t.getY(), t.getZ(), r, p, y);
 
     // Construct the transforms
     tf::Transform tf_marker(q, t);
