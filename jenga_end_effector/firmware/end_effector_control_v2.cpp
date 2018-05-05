@@ -19,7 +19,7 @@
 #define GRIPPER_OPEN_WIDE_POSITION 2060
 #define GRIPPER_OPEN_NARROW_POSITION 1500
 #define GRIPPER_CLOSE_NARROW_POSITION 1290
-#define GRIPPER_CLOSE_WIDE_POSITION 1990
+#define GRIPPER_CLOSE_WIDE_POSITION 1985
 
 void commandCallback(const jenga_msgs::EndEffectorControl& msg);
 void publishFeedback(const uint8_t feedback_code);
