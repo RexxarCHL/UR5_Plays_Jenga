@@ -31,5 +31,5 @@
 	<include file="$(find jenga_ur5_control)/launch/jenga_ur5_control.launch" />
 
 	<!-- Start up trajectory control node -->
-	<node name="trajectory_control" pkg="jenga_ur5_control" type="trajectory_control" respawn="true" output="screen"/>
+	<node name="trajectory_control" pkg="jenga_ur5_control" type="trajectory_control" respawn="false" output="screen"/>
 </launch>
