@@ -29,7 +29,7 @@ int main(int argc, char** argv)
   tf::Transform tf_rest_to_drop(q, tf::Vector3(0.05, 0.05, 0.03));
 
   // roadmap/block_rest to roadmap_block_pickup
-  q; q.setRPY(0, M_PI, M_PI/2);
+  q; q.setRPY(0, M_PI, -M_PI/2);
   tf::Transform tf_rest_to_pickup(q, tf::Vector3(0.01, 0.0, 0.07));
 
 
