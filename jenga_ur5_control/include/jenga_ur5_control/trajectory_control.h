@@ -162,7 +162,11 @@ private:
   //jenga_msgs::EndEffectorControl tool_command_;
 
   // Game state
+  tf::Transform previous_tower_location_;
   int current_level_; // The current top level count
+  int playing_side_;
+  int playing_block_;
+  int playing_level_;
   std::vector<int> top_status_; // The current block occupancy on top of the tower
   bool top_orientation_; // The current correct orientation to place a block
   int checkGameState(); // Check and update game state. Return first empty block slot

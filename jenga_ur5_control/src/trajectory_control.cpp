@@ -48,7 +48,7 @@ void TrajCtrl::initializeSubscriber()
   // Tool related
   tool_feedback_subscriber_ = 
       nh_.subscribe<jenga_msgs::EndEffectorFeedback>("/tool/feedback", 1, &TrajCtrl::feedbackCallback, this);
-  tool_range_subscriber_ = nh_.subscribe<jenga_msgs::Probe>("/tool/range", 10, &TrajCtrl::rangeCallback, this);
+  tool_range_subscriber_ = nh_.subscribe<jenga_msgs::Probe>("/tool/range", 300, &TrajCtrl::rangeCallback, this);
       //nh_.subscribe<sensor_msgs::Range>("/tool/range", 10, &TrajCtrl::rangeCallback, this);
   tool_probe_subscriber_ = 
       nh_.subscribe<jenga_msgs::Probe>("/tool/probe", 3, &TrajCtrl::probeCallback, this);
@@ -190,6 +190,11 @@ void TrajCtrl::publishTargetResult(jenga_msgs::JengaTarget target_block, bool re
  */
 bool TrajCtrl::playBlock(int side, int level, int block)
 {
+  playing_side_ = side;
+  playing_level_ = level;
+  playing_block_ = block;
+  //previous_tower_location_ = checkTowerLocation(); //TODO
+
   /* Move arm to probing position */
   moveToActionPosition(PROBE, side, level, block);
 
@@ -1028,7 +1033,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeProbingAction()
 
   /* Move back to starting position */
   // Clear the trajectory
-  trajectory.points = std::vector<trajectory_msgs::JointTrajectoryPoint>();
+  trajectory.points.clear();
 
   // Start with current position
   joints_current.positions = getCurrentJointState().position;
@@ -1131,7 +1136,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGrippingAction(int mode)
 
   /* Move back to starting position */
   // Clear the trajectory
-  trajectory.points = std::vector<trajectory_msgs::JointTrajectoryPoint>();
+  trajectory.points.clear();
 
   // Start with current position
   joints_current.positions = getCurrentJointState().position;
@@ -1199,6 +1204,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeRangeFindingAction()
   debugPrintJoints(config_left);
   debugPrintJoints(config_right);
 
+  /* Move to left position first */
   // All actions start with current position
   trajectory_msgs::JointTrajectoryPoint joints_start;
   joints_start.positions = getCurrentJointState().position;
@@ -1210,57 +1216,73 @@ actionlib::SimpleClientGoalState TrajCtrl::executeRangeFindingAction()
   trajectory_msgs::JointTrajectoryPoint joints_left;
   joints_left.positions = config_left;
   joints_left.velocities = zero_vector;
-  joints_left.time_from_start = ros::Duration(time_required * 1);
+  joints_left.time_from_start = ros::Duration(time_required);
   trajectory.points.push_back(joints_left);
 
-  // Then drive to right position
+  // Send the trajectory
+  ROS_INFO("[executeRangeFindingAction] Moving to left position");
+  control_msgs::FollowJointTrajectoryGoal goal;
+  goal.trajectory = trajectory;
+  executeTrajectoryGoal(goal);
+
+
+  /* Scan from left to right and collect range data */
+  trajectory.points.clear(); // Clear trajectory points
+  
+  // Start from current position
+  joints_left.positions = getCurrentJointState().position;
+  joints_left.time_from_start = ros::Duration(0.0);
+  trajectory.points.push_back(joints_left);
+
+  // Drive to right position
   trajectory_msgs::JointTrajectoryPoint joints_right;
   joints_right.positions = config_right;
   joints_right.velocities = zero_vector;
-  joints_right.time_from_start = ros::Duration(time_required * 3);
+  joints_right.time_from_start = ros::Duration(time_required * 5);
   trajectory.points.push_back(joints_right);
 
-  // Drive back to start position again
-  joints_start.time_from_start = ros::Duration(time_required * 4);
-  trajectory.points.push_back(joints_start);
-
-  // DEBUG
-  ROS_INFO("[executeRangeFindingAction] trajectory size: %lu", trajectory.points.size());
-  for (int i = 0; i < trajectory.points.size(); ++i)
-  {
-    ROS_INFO("[executeRangeFindingAction] Point%d:", i);
-    debugPrintJoints(trajectory.points[i].positions);
-  }
-
-  /* Signal the tool to start sending range finder message */
-  // Prepare and send the command message
+  // Signal the tool to start sending range finder data
   publishToolCommand(jenga_msgs::EndEffectorControl::RANGE_ON);
   
   // Wait until the tool says range finder is on
   bool feedback_result = blockUntilToolFeedback(jenga_msgs::EndEffectorFeedback::ACK_RANGE_ON);
-  ROS_INFO("[executeGrippingAction] Tool feedback: %d", feedback_result);
+  ROS_INFO("[executeRangeFindingAction] Tool feedback: %d", feedback_result);
 
-  /* Send the trajectory */
-  control_msgs::FollowJointTrajectoryGoal goal;
+  // Send the trajectory
+  ROS_INFO("[executeRangeFindingAction] Scanning...");
   goal.trajectory = trajectory;
   executeTrajectoryGoalNonblocking(goal);
 
-  /* Let callbacks process until the action is done */
+  // Let callbacks process until the action is done
   is_range_finding_ = true; // Enable callback function for /tool/range to do its job
   while (!action_client_->getState().isDone())
     ros::spinOnce(); // Check and execute callbacks
   is_range_finding_ = false; // Let callback function for /tool/range return immediately
 
-
-  /* Signal the tool to stop sending range finder message */
-  // Prepare and send the command message
+  // Signal the tool to stop sending range finder message
   publishToolCommand(jenga_msgs::EndEffectorControl::RANGE_OFF);
   
   // Wait until the tool says range finder is off
   feedback_result = blockUntilToolFeedback(jenga_msgs::EndEffectorFeedback::ACK_RANGE_OFF);
-  ROS_INFO("[executeGrippingAction] Tool feedback: %d", feedback_result);
+  ROS_INFO("[executeRangeFindingAction] Tool feedback: %d", feedback_result);
 
-  /* Return action result */
+
+  /* Drive back to original position */
+  trajectory.points.clear(); // Clear the trajectory
+
+  joints_right.positions = getCurrentJointState().position;
+  joints_right.time_from_start = ros::Duration(0.0);
+  trajectory.points.push_back(joints_right);
+
+  // Drive back to start position again
+  joints_start.time_from_start = ros::Duration(time_required);
+  trajectory.points.push_back(joints_start);
+
+  // Send trajectory
+  ROS_INFO("[executeRangeFindingAction] Moving back to original position");
+  goal.trajectory = trajectory;
+  executeTrajectoryGoal(goal);
+  
   actionlib::SimpleClientGoalState status = action_client_->getState();
 
   ROS_INFO("[executeRangeFindingAction] Range finding action done, with status %s", status.toString().c_str() );
@@ -1433,7 +1455,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executePlaceBlockAction()
 
   /* Move back to starting position */
   // Clear the trajectory
-  trajectory.points = std::vector<trajectory_msgs::JointTrajectoryPoint>();
+  trajectory.points.clear();
 
   // Start with current position
   joints_current.positions = getCurrentJointState().position;
@@ -1670,25 +1692,19 @@ void TrajCtrl::rangeCallback(const jenga_msgs::Probe::ConstPtr& msg)
   int sequence_id = msg->header.seq;
   ROS_INFO("Processing rangeCallback for %d", sequence_id);
 
+  ros::Time time = msg->header.stamp;
   float range = msg->data;
   ROS_INFO("range: %f", range);
-  // Check if the range is in proper range. Pun intended.
-  /*
-  if (range > msg->max_range || range < msg->min_range)
-  {
-    ROS_WARN("values < range_min or > range_max");
-    return;
-  }
-  */
 
   // Record the current tf and range data as a pair, for later analysis
-  // TODO: this can be a little late?
   tf::StampedTransform tf_stamped;
-  tf_listener_.lookupTransform("base_link", "tool_range_finder", ros::Time(), tf_stamped);
-  tf::Transform tf_range_finder(tf_stamped.getBasis(), tf_stamped.getOrigin());
-  std::pair<double, float> current_data(tf_stamped.getOrigin().getY(), range);
+  std::string tf_side_name = "roadmap_side" + std::to_string((playing_side_+2) % 4); // get side tf of "other side" as fixed reference
+  bool frame_exists = tf_listener_.waitForTransform(tf_side_name, "tool_range_finder", time, ros::Duration(0.3));
 
-  // Store the pair for later analysis
+  tf_listener_.lookupTransform(tf_side_name, "tool_range_finder", time, tf_stamped);
+  tf::Transform tf_range_finder(tf_stamped.getBasis(), tf_stamped.getOrigin());
+
+  std::pair<double, float> current_data(tf_stamped.getOrigin().getX(), range);
   range_finder_data_.push_back(current_data);
 }
 
@@ -1737,9 +1753,20 @@ void TrajCtrl::debugTestFunctions()
       }
   */
   moveToHomePosition(5);
+
+  playing_side_ = 0;
+  playing_level_ = 6;
+  playing_block_ = 0;
+  moveToActionPosition(RANGE_FINDER, (playing_side_+2)%4, playing_level_, playing_block_);
+
+  ROS_WARN("Moved to range finding position. Execute action is next...");
   debugBreak();
-  executeGripChangeAction();
-  debugBreak();
+
+  /* Use range finder to find center of the block */
+  executeRangeFindingAction();
+
+  saveData(range_finder_data_, "range_finder");
+  range_finder_data_.clear();
 }
 
 void TrajCtrl::driveToEveryConfig(std::vector<TrajCtrl::Configuration> configs)
@@ -1779,6 +1806,12 @@ void TrajCtrl::saveData(std::vector<std::pair<double, float>> v, std::string fil
 {
   ROS_INFO("SAVING DATA");
   ros::spinOnce(); // Process the callback queue one last time
+
+  if (v.empty())
+  {
+    ROS_WARN("Vector is empty!");
+    return;
+  }
 
   std::string output_name = "/home/clin110/data/" + file_name + "-" + std::to_string(ros::Time::now().sec) + ".txt";
   //std::ofstream out_file("/home/clin110/data/range_finder_data.txt");
@@ -1820,7 +1853,7 @@ int main(int argc, char** argv){
   TrajCtrl trajectory_control(&nh);
 
   ros::spinOnce();
-  //trajectory_control.debugTestFunctions();
+  trajectory_control.debugTestFunctions();
 
   ROS_INFO("Initialization complete. Spinning...");
 
