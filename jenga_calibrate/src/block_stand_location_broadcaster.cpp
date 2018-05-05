@@ -95,8 +95,8 @@ int main(int argc, char** argv)
     if (diff_q.length() > MAX_Q_DIFF || diff_t.length() > MAX_P_DIFF)
     {
       // Pose drastically changed; reset counter to learn the new positions
-      ROS_WARN("[block stand] POSE CHANGED!");
-      ROS_WARN("[block stand] %f, %f", diff_q.length(), diff_t.length());
+      //ROS_WARN("[block stand] POSE CHANGED!");
+      //ROS_WARN("[block stand] %f, %f", diff_q.length(), diff_t.length());
       learning_counter = 0; // reset counter to use alpha_initial
     }
     ROS_WARN("diff: %f, %f", diff_q.length(), diff_t.length());
@@ -107,17 +107,14 @@ int main(int argc, char** argv)
       learning_counter++;
     }
     else
-    {
-      ROS_INFO("loop");
       alpha = ALPHA_LOOP;
-    }
 
     rot_mtx.setRotation(q);
     rot_mtx.getRPY(r, p, y);
     if(learning_counter > 1) // Update except on the 1st iteration
     {
-      ROS_INFO("current : x: %f, y:%f, z: %f, r:%f, p:%f, y:%f", t.getX(), t.getY(), t.getZ(), r, p, y);
-      ROS_INFO("previous: x: %f, y:%f, z: %f, r:%f, p:%f, y:%f", prev_t.getX(), prev_t.getY(), prev_t.getZ(), prev_r, prev_p, prev_y);
+      //ROS_INFO("current : x: %f, y:%f, z: %f, r:%f, p:%f, y:%f", t.getX(), t.getY(), t.getZ(), r, p, y);
+      //ROS_INFO("previous: x: %f, y:%f, z: %f, r:%f, p:%f, y:%f", prev_t.getX(), prev_t.getY(), prev_t.getZ(), prev_r, prev_p, prev_y);
 
       t = alpha * t + (1.0 - alpha) * prev_t;
       r = alpha * r + (1.0 - alpha) * prev_r;
@@ -127,7 +124,7 @@ int main(int argc, char** argv)
       q.setRPY(r, p, y);
     }
 
-     ROS_INFO("after : x: %f, y:%f, z: %f, r:%f, p:%f, y:%f", t.getX(), t.getY(), t.getZ(), r, p, y);
+    //ROS_INFO("after : x: %f, y:%f, z: %f, r:%f, p:%f, y:%f", t.getX(), t.getY(), t.getZ(), r, p, y);
 
     // Construct the transforms
     tf::Transform tf_marker(q, t);
