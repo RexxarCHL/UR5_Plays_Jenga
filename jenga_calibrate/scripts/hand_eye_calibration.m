@@ -3,7 +3,7 @@ tftree = rostf;
 pause(1);
 
 N = 5;
-solution = zeros(N, 7);
+solution = zeros(N, 6);
 
 for i = 1 : 5
     cam_to_marker = getTransform(tftree, 'camera', 'ar_marker_0');
@@ -24,18 +24,21 @@ for i = 1 : 5
     tf_base = [rot_base t_base; 0 0 0 1;];
     
     x = tf_base / tf_cam;
-    q = rotm2quat(x(1:3, 1:3));
-    solution(i, :) = [x(1, 4), x(2, 4), x(3, 4), q(2:4), q(1)]
+    q = rotm2eul(x(1:3, 1:3));
+    solution(i, :) = [x(1, 4), x(2, 4), x(3, 4), q];
     
     disp('move to next location');
     k = waitforbuttonpress;
 end
-average_solution = mean(solution)
+average_solution = mean(solution);
+quat = eul2quat(average_solution(4:6));
+
+solution = [average_solution(1:3), quat(2:4), quat(1)];
 
 fileID = fopen('../yaml/camera_transformation.yaml', 'w');
 fprintf(fileID, 'transformation: [');
 for i = 1 : 7
-    fprintf(fileID, '%f', average_solution(i));
+    fprintf(fileID, '%f', solution(i));
     if (i ~= 7)
        fprintf(fileID, ', '); 
     else
