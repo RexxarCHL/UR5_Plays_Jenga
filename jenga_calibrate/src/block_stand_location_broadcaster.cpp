@@ -100,7 +100,7 @@ int main(int argc, char** argv)
       learning_counter = 0; // reset counter to use alpha_initial
     }
 
-    if (learning_counter == LEARNING_ITERATIONS)
+    if (learning_counter < LEARNING_ITERATIONS)
     {
       alpha = ALPHA_INITIAL;
       learning_counter++;
