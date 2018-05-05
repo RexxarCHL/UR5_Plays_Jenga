@@ -18,11 +18,9 @@ int main(int argc, char** argv)
 
   /* Initialize relative transforms */
   // ar_marker_5 to roadmap/block_rest
-  tf::Matrix3x3 rot(
-     0.000000, 0.965926, -0.258819, 
-    -0.866025, 0.129410,  0.482963,
-     0.500000, 0.224144,  0.836516); // Data acquired from CAD 
-  tf::Transform tf_marker_to_rest(rot, tf::Vector3(0.0929930, 0.0839667, 0.0345500));
+  tf::Transform tf_marker_to_rest(
+      tf::Quaternion(0.962162894354454, 0.044047849016084, 0.115541415343399, 0.242801427230072), 
+      tf::Vector3(0.093663639678848, 0.084229382378222, 0.037221290122700) );
 
   // roadmap/block_rest to roadmap_blockTwoSidesAgent
   tf::Quaternion q; q.setRPY(-M_PI/2-M_PI/20, -M_PI/10, M_PI);
@@ -30,7 +28,7 @@ int main(int argc, char** argv)
 
   // roadmap/block_rest to roadmap_block_pickup
   q; q.setRPY(0, M_PI, -M_PI/2);
-  tf::Transform tf_rest_to_pickup(q, tf::Vector3(0.01, 0.0, 0.07));
+  tf::Transform tf_rest_to_pickup(q, tf::Vector3(0.0, 0.0, -0.07));
 
 
 	/* Wait for ar_marker_5 to spawn */
