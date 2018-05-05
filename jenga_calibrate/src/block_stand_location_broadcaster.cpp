@@ -95,11 +95,10 @@ int main(int argc, char** argv)
     if (diff_q.length() > MAX_Q_DIFF || diff_t.length() > MAX_P_DIFF)
     {
       // Pose drastically changed; reset counter to learn the new positions
-      //ROS_WARN("[block stand] POSE CHANGED!");
-      //ROS_WARN("[block stand] %f, %f", diff_q.length(), diff_t.length());
+      ROS_WARN("[block stand] POSE CHANGED!");
+      ROS_WARN("[block stand] %f, %f", diff_q.length(), diff_t.length());
       learning_counter = 0; // reset counter to use alpha_initial
     }
-    ROS_WARN("diff: %f, %f", diff_q.length(), diff_t.length());
 
     if (learning_counter < LEARNING_ITERATIONS)
     {
