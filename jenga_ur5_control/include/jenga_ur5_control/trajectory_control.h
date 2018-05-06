@@ -176,6 +176,7 @@ private:
   bool is_probing_;
   bool is_range_finding_;
   std::vector<std::pair<double, float>> range_finder_data_;
+  tf::Vector3 compensation_result_;
 
   // Tool related
   bool tool_feedback_flag_; // Flag to indicate if there is a new message available
@@ -357,6 +358,10 @@ private:
    * Issues a warning if it is not in home configuration.
    */
   void checkRobotInHomeConfig();
+
+  void calculateCompensation();
+  std::vector<float> rollingMean(std::vector<float> v);
+  std::vector<float> diff(std::vector<float> v);
 
   void debugPrintJoints(Configuration joints);
   void debugBreak();

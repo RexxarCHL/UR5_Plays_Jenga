@@ -25,6 +25,8 @@ TrajCtrl::TrajCtrl(ros::NodeHandle* nh): nh_(*nh)
   is_probing_ = false;
   is_range_finding_ = false;
 
+  compensation_result_ = tf::Vector3(0, 0, 0);
+
   initializeSubscriber();
   initializePublisher();
   initializeServiceClient();
@@ -708,7 +710,7 @@ tf::Transform TrajCtrl::compensateEELinkToGripper(tf::Transform transform)
 tf::Transform TrajCtrl::compensateEELinkToRangeFinder(tf::Transform transform)
 {
   tf::Transform ee_link_to_tool0( tf::Quaternion(-0.5, 0.5, -0.5, 0.5) ); 
-  tf::Transform tool0_to_tool_range_finder( tf::Quaternion::getIdentity(), tf::Vector3(0, -0.02942, 0.059234) );
+  tf::Transform tool0_to_tool_range_finder( tf::Quaternion::getIdentity(), tf::Vector3(0, -0.02942, 0.039234) );
 
   tf::Transform ee_link_to_tool_range_finder = ee_link_to_tool0 * tool0_to_tool_range_finder;
 
@@ -719,7 +721,7 @@ tf::Transform TrajCtrl::compensateEELinkToRangeFinder(tf::Transform transform)
 tf::Transform TrajCtrl::compensateEELinkToProbe(tf::Transform transform)
 {
   tf::Transform ee_link_to_tool0( tf::Quaternion(-0.5, 0.5, -0.5, 0.5) ); 
-  tf::Transform tool0_to_tool_probe( tf::Quaternion(0.0, M_PI/4, 0.0, M_PI/4), tf::Vector3(0.0795, 0, 0.026146) );
+  tf::Transform tool0_to_tool_probe( tf::Quaternion(0.0, M_PI/4, 0.0, M_PI/4), tf::Vector3(0.0795, -0.003, 0.016146) );
 
   tf::Transform ee_link_to_tool_probe = ee_link_to_tool0 * tool0_to_tool_probe;
 
