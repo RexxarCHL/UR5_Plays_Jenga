@@ -85,18 +85,7 @@ public:
    * Return: true if the block is played. false if the block can not be safely removed.
    */
   bool playBlock(int side, int level, int block);
-  
-  /**
-   * Drive the arm via proper trajectory to the target block location.
-   *
-   * Input:
-   *   side : The side indicated on the AR tag paper. Can take on 0, 1, 2, or 3.
-   *   level: The level in the Jenga tower the target block is on.
-   *   block: The block number indicated on the AR tag paper. Can take on -1, 0, or 1.
-   *
-   * Return: Action status code. (See: http://docs.ros.org/jade/api/actionlib_msgs/html/msg/GoalStatus.html)
-   */
-  actionlib::SimpleClientGoalState driveArmToJengaBlock(int side, int level, int block);
+
   // Return internal joint state
   sensor_msgs::JointState getCurrentJointState();
 
