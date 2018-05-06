@@ -244,6 +244,7 @@ bool TrajCtrl::playBlock(int side, int level, int block)
   /* Find center of the block and compensate accordingly */
   // TODO
   // tf::Transform compensation_transform = ...
+  calculateCompensation();
 
   /* Move arm to gripping position */
   moveToActionPosition(GRIPPER, other_side, level, block);
@@ -1682,12 +1683,11 @@ void TrajCtrl::probeCallback(const jenga_msgs::Probe::ConstPtr& msg)
   if (!is_probing_)
     return;
 
-  float force = msg->data;
+  double force = msg->data;
 
   if (force > PROBE_FORCE_THRESHOLD_)
     action_client_->cancelGoal();
 }
-//void TrajCtrl::rangeCallback(const sensor_msgs::Range::ConstPtr& msg)
 void TrajCtrl::rangeCallback(const jenga_msgs::Probe::ConstPtr& msg)
 {
   if (!is_range_finding_)
@@ -1698,7 +1698,7 @@ void TrajCtrl::rangeCallback(const jenga_msgs::Probe::ConstPtr& msg)
   ROS_INFO("Processing rangeCallback for %d", sequence_id);
 
   ros::Time time = msg->header.stamp;
-  float range = msg->data;
+  double range = msg->data;
   ROS_INFO("range: %f", range);
 
   // Record the current tf and range data as a pair, for later analysis
@@ -1707,10 +1707,145 @@ void TrajCtrl::rangeCallback(const jenga_msgs::Probe::ConstPtr& msg)
   bool frame_exists = tf_listener_.waitForTransform(tf_side_name, "tool_range_finder", time, ros::Duration(0.3));
 
   tf_listener_.lookupTransform(tf_side_name, "tool_range_finder", time, tf_stamped);
-  tf::Transform tf_range_finder(tf_stamped.getBasis(), tf_stamped.getOrigin());
+  //tf::Transform tf_range_finder(tf_stamped.getBasis(), tf_stamped.getOrigin());
 
-  std::pair<double, float> current_data(tf_stamped.getOrigin().getX(), range);
+  std::pair<double, double> current_data(tf_stamped.getOrigin().getX(), range);
   range_finder_data_.push_back(current_data);
+}
+
+void TrajCtrl::calculateCompensation()
+{
+  ROS_INFO("Calculating compensation");
+
+  /* Unzip the data */
+  std::vector<double> y, data;
+  for (auto p: range_finder_data_)
+  {
+    y.push_back(p.first);
+    data.push_back(p.second);
+  }
+
+  // DEBUG: zip the processed data back and store them
+  std::vector<double> smoothed_v = rollingMean(data);
+  std::vector<double> smoothed_diff = rollingMean(diff(smoothed_v));
+  std::vector<std::pair<double, double>> v;
+  for (int i = 0; i < smoothed_v.size(); ++i)
+  {
+    if(i == smoothed_diff.size())
+      v.push_back(std::pair<double, double>(smoothed_v[i], 0.0));
+    else
+      v.push_back(std::pair<double, double>(smoothed_v[i], smoothed_diff[i]));
+  }
+  saveData(v, "compensate_debug");
+
+  /* Calculate the mid point of the block from the min and max indices */
+  std::pair<int, int> peak_indices = getPeaks(rollingMean(diff(rollingMean(data))));
+  int peak1_index = peak_indices.first;
+  int peak2_index = peak_indices.second;
+  ROS_INFO("peaks: %d, %d", peak1_index, peak2_index);
+  double mid_point;
+  if ((peak1_index + peak2_index) % 2) // min + max is even
+  {
+    int mid_index = (int) (peak1_index + peak2_index) / 2;
+    mid_point = y[mid_index];
+  }
+  else
+  {
+    float mid = (peak1_index + peak2_index) / 2;
+    int index1 = (int) std::floor(mid);
+    int index2 = (int) std::ceil(mid);
+
+    mid_point = (y[index1] + y[index2]) / 2;
+  }
+
+  /* Get bias between side waypoint and current range finder position */
+  ros::Time now = ros::Time::now();
+  tf::StampedTransform tf_stamped;
+  std::string tf_side_name = "roadmap_side" + std::to_string((playing_side_+2) % 4); // get side tf of "other side" as fixed reference
+  bool frame_exists = tf_listener_.waitForTransform(tf_side_name, "tool_range_finder", now, ros::Duration(0.3));
+
+  tf_listener_.lookupTransform(tf_side_name, "tool_range_finder", now, tf_stamped);
+  double y_bias = tf_stamped.getOrigin().getX();
+
+  /* Calculate and store compensation distance */
+  ROS_INFO("mid: %f, bias: %f", mid_point, y_bias);
+  mid_point -= y_bias;
+  ROS_INFO("Compensation: %f", mid_point);
+  compensation_result_ = tf::Vector3(mid_point, 0.0, 0.0);
+
+
+  /* Clean up */
+  range_finder_data_.clear();
+  error_indices_.clear();
+}
+
+// Moving average with adaptive window size. Odd window sizes only!
+std::vector<double> TrajCtrl::rollingMean(std::vector<double> v, int window_size) // default window size = 29
+{
+  int half_window = (window_size - 1) / 2;
+  int lower_boundry, upper_boundry;
+  int vector_size = v.size();
+  double sum;
+  std::vector<double> rv;
+  for (int i = 0; i < vector_size; ++i)
+  {
+    if (v[i] > 19.99999)
+    {
+      // range == 20.0 represents error, add this index to ignore list
+      error_indices_.insert(i);
+    }
+
+    // Determine the boundries when the elements are not enough to fill the window
+    lower_boundry = (i < half_window)? 0 : i - half_window;
+    upper_boundry = ((i + half_window) > vector_size)? vector_size - 1: i + half_window;
+
+    // Sum everything in the window
+    sum = 0.0;
+    for(int j = lower_boundry; j < upper_boundry; ++j)
+      sum += v[j];
+
+    // Store the average
+    rv.push_back(sum / (upper_boundry - lower_boundry + 1));
+  }
+
+  return rv;
+}
+
+// Calculate difference and approximate derivative
+std::vector<double> TrajCtrl::diff(std::vector<double> v)
+{
+  std::vector<double> rv;
+
+  for (int i = 1; i < v.size(); ++i)
+    rv.push_back(v[i] - v[i-1]);
+
+  return rv;
+}
+
+// Find min and max of the input vector
+std::pair<int, int> TrajCtrl::getPeaks(std::vector<double> v)
+{
+  double min{99999999.99}, max{0.0};
+  int min_index, max_index;
+
+  for (int i = 0; i < v.size(); ++i)
+  {
+    if (error_indices_.count(i))
+      continue; // ignore data points involving 20.0 range
+
+    if(v[i] < min)
+    {
+      min_index = i;
+      min = v[i];
+    }
+    if(v[i] > max)
+    {
+      max_index = i;
+      max = v[i];
+    }
+  }
+
+  return std::pair<double,double>(min_index, max_index);
 }
 
 void TrajCtrl::debugPrintJoints(TrajCtrl::Configuration joints)
@@ -1748,7 +1883,7 @@ void TrajCtrl::debugTestFunctions()
 
   playing_side_ = 0;
   playing_level_ = 7;
-  playing_block_ = 1;
+  playing_block_ = 0;
   moveToActionPosition(RANGE_FINDER, (playing_side_+2)%4, playing_level_, playing_block_);
 
   ROS_WARN("Moved to range finding position. Execute action is next...");
@@ -1757,7 +1892,10 @@ void TrajCtrl::debugTestFunctions()
   executeRangeFindingAction();
 
   saveData(range_finder_data_, "range_finder");
-  range_finder_data_.clear();
+  //range_finder_data_.clear();
+
+  calculateCompensation();
+  debugBreak();
   //debugBreak();
   //executeGripChangeAction();
   //debugBreak();
@@ -1796,7 +1934,7 @@ void TrajCtrl::driveToEveryConfig(std::vector<TrajCtrl::Configuration> configs)
   }
 }
 
-void TrajCtrl::saveData(std::vector<std::pair<double, float>> v, std::string file_name)
+void TrajCtrl::saveData(std::vector<std::pair<double, double>> v, std::string file_name)
 {
   ROS_INFO("SAVING DATA");
   ros::spinOnce(); // Process the callback queue one last time

@@ -175,8 +175,10 @@ private:
   bool is_busy_;
   bool is_probing_;
   bool is_range_finding_;
-  std::vector<std::pair<double, float>> range_finder_data_;
+  std::vector<std::pair<double, double>> range_finder_data_;
+  //tf::Transform tf_expected_;
   tf::Vector3 compensation_result_;
+  std::set<int> error_indices_;
 
   // Tool related
   bool tool_feedback_flag_; // Flag to indicate if there is a new message available
@@ -359,14 +361,41 @@ private:
    */
   void checkRobotInHomeConfig();
 
+
+  /**
+   * Calculate the translational difference using data collected from range finder.
+   */
   void calculateCompensation();
-  std::vector<float> rollingMean(std::vector<float> v);
-  std::vector<float> diff(std::vector<float> v);
+  /**
+   * Calculate moving average of the input vector with adaptive window size if there is not enough element to fill the window.
+   * 
+   * Input:
+   *   v: The vector to smooth.
+   *   window_size: Rolling window size. Must be odd. Default value is 29.
+   * Return: Smoothed vector that is of the same size as the input vector.
+   */
+  std::vector<double> rollingMean(std::vector<double> v, int window_size = 29);
+  /**
+   * Calculate difference and approximate derivative.
+   *
+   * Input:
+   *   v: The vector to take derivative.
+   * Return: The approximated derivative of the input vector. Size is one smaller than the input vector.
+   */
+  std::vector<double> diff(std::vector<double> v);
+  /**
+   * Find the INDEX of peak elements of the input vector. There will be one positive and one negative peak.
+   *
+   * Input:
+   *   v: The vector to find peaks from.
+   * Return: A pair of doubles, where the first element is the index of min element and the second is that of max element.
+   */
+  std::pair<int, int> getPeaks(std::vector<double> v);
 
   void debugPrintJoints(Configuration joints);
   void debugBreak();
   void driveToEveryConfig(std::vector<Configuration> configs);
-  void saveData(std::vector<std::pair<double, float>> v, std::string file_name);
+  void saveData(std::vector<std::pair<double, double>> v, std::string file_name);
 }; // class TrajCtrl
 
 #endif // JENGA_TRAJ_CTRL_H
