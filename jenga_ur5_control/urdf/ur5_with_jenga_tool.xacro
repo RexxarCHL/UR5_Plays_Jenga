@@ -78,7 +78,7 @@
 
   <joint name="jenga_tool_to_gripper" type="fixed">
     <axis xyz="0 0 0" />
-    <origin xyz="0 0 0.072646" rpy="0 0 0" />
+    <origin xyz="0 0 0.077646" rpy="0 0 0" />
     <parent link="jenga_tool" />
     <child link="tool_gripper" />
   </joint>

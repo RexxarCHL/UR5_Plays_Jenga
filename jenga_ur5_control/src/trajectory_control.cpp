@@ -120,7 +120,7 @@ void TrajCtrl::initializeServiceClient()
 }
 
 void TrajCtrl::initializeWaypointsAndCompensations()
-{  
+{
   /* Get which side to play on */
   std::array<tf::Transform, 4> tf_side;
   std::array<double, 4> angles, distances;
@@ -156,14 +156,16 @@ void TrajCtrl::initializeWaypointsAndCompensations()
   int this_side = (min_index + 1) % 2;
   //int other_side = (side + 2) % 4;
   std::array<int, 2> sides {{this_side , (this_side + 2) % 4}};
-  ROS_INFO("Initializing inverse configurations and compensations on side %d and %d", sides[0], sides[1]);
+
+  ROS_WARN("Initializing inverse configurations and compensations on side %d and %d", sides[0], sides[1]);
+  ROS_WARN("Please be aware of the surroundings and put a hand on E-STOP.");
 
   trajectory_msgs::JointTrajectory trajectory; // Initialize new trajectory
   trajectory.joint_names = UR_JOINT_NAMES_;
   std::vector<double> zero_vector{0, 0, 0, 0, 0, 0};
   control_msgs::FollowJointTrajectoryGoal goal;
   trajectory_msgs::JointTrajectoryPoint joints_current;
-  for (int i = 0; i < 1; i++)
+  for (int i = 0; i < 2; i++)
   {
     this_side = sides[i];
     ROS_INFO("Moving to side %d", this_side);
@@ -174,7 +176,7 @@ void TrajCtrl::initializeWaypointsAndCompensations()
     /* Lookup transform on probing side */
     tf::Transform tf_above, tf_side;
     tf_above = compensateEELinkToGripper( retrieveTransform(ABOVE_FRAME_NAMES_[this_side]) );
-    tf_side = compensateEELinkToTool0( retrieveTransform(SIDE_FRAME_NAMES_[this_side]) );
+    tf_side = compensateEELinkToRangeFinder( retrieveTransform(SIDE_FRAME_NAMES_[this_side]) );
 
     // DEBUG: show the frames
     tf_broadcaster_.sendTransform(
@@ -193,6 +195,15 @@ void TrajCtrl::initializeWaypointsAndCompensations()
     config_side = eliminateConfigurations(inv_configs_side, tf_side);
     // Eliminate configurations for roadmap_above by least difference to roadmap_side
     config_above = pickMinimumEffortConfiguration(inv_configs_above, config_side);
+
+    // Eliminate excess wrist3 joint movement
+    double delta = 0.001;
+    double wrist_3_difference = std::abs(config_side[WRIST_3_JOINT] - config_above[WRIST_3_JOINT]);
+    if (wrist_3_difference < 2*M_PI + delta && wrist_3_difference > 2*M_PI - delta )
+    {
+      // wrist 3 rotates 2pi, set two joint values to be the same
+      config_above[WRIST_3_JOINT] = config_side[WRIST_3_JOINT];
+    }
 
     /* Drive the arm to the waypoints sequentially */
     // All actions start with current position
@@ -241,7 +252,7 @@ void TrajCtrl::initializeWaypointsAndCompensations()
 
     ROS_INFO("Moving back home");
     debugBreak();
-    generateHomingTrajectory(this_side);
+    moveToHomePosition(this_side);
   }
   
   ROS_INFO("Checking drop configuration...");
@@ -298,6 +309,7 @@ void TrajCtrl::initializeWaypointsAndCompensations()
 
   // Start with current position
   joints_current.positions = getCurrentJointState().position;
+  joints_current.time_from_start = ros::Duration(0.0);
   trajectory.points.push_back(joints_current);
 
   // Move to the position above the block
@@ -310,7 +322,7 @@ void TrajCtrl::initializeWaypointsAndCompensations()
   trajectory_msgs::JointTrajectoryPoint joints_rest;
   joints_rest.positions = config_rest;
   joints_rest.velocities = zero_vector;
-  joints_rest.time_from_start = ros::Duration(5.0);
+  joints_rest.time_from_start = ros::Duration(10.0);
   trajectory.points.push_back(joints_rest);
 
   // Send the trajectory
@@ -327,9 +339,11 @@ void TrajCtrl::initializeWaypointsAndCompensations()
 
   // Start with current position
   joints_current.positions = getCurrentJointState().position;
+  joints_current.time_from_start = ros::Duration(0.0);
   trajectory.points.push_back(joints_current);
 
   // Move to the position above the block
+  joints_pickup.time_from_start = ros::Duration(5.0);
   trajectory.points.push_back(joints_pickup);
 
   // Send the trajectory
@@ -343,7 +357,7 @@ void TrajCtrl::initializeWaypointsAndCompensations()
   stored_configurations_.insert( std::pair<std::string, Configuration>("roadmap_block_rest", config_rest) );
 
   /* Open gripper to drop the block */
-  ROS_INFO("Opening gripper");
+  ROS_INFO("Reset gripper");
   debugBreak();
   publishToolCommand(GRIPPER_OPEN_NARROW);
   
@@ -352,7 +366,7 @@ void TrajCtrl::initializeWaypointsAndCompensations()
 
   ROS_INFO("Moving back home");
   debugBreak();
-  generateHomingTrajectory(5);
+  moveToHomePosition(5);
   
   ROS_INFO("Waypoint and compensations initialized");
 }
@@ -839,7 +853,7 @@ tf::Transform TrajCtrl::compensateEELinkToTool0(tf::Transform transform)
 tf::Transform TrajCtrl::compensateEELinkToGripper(tf::Transform transform)
 {
   tf::Transform ee_link_to_tool0( tf::Quaternion(-0.5, 0.5, -0.5, 0.5) ); 
-  tf::Transform tool0_to_tool_gripper( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, 0.072646) );
+  tf::Transform tool0_to_tool_gripper( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, 0.077646) );
 
   tf::Transform ee_link_to_tool_gripper = ee_link_to_tool0 * tool0_to_tool_gripper;
 
@@ -1321,7 +1335,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeRangeFindingAction(bool mode) 
   //target_translation.setZ( target_translation.getZ() - 0.050 );
   //tf::Transform tf_right(tf_range_finder.getRotation(), target_translation);
 
-  double offset = mode? 0.035 : 0.05;
+  double offset = mode? 0.035 : 0.06;
   tf::Transform tf_left( tf::Quaternion::getIdentity(), tf::Vector3(offset, 0, 0) );
   tf::Transform tf_right( tf::Quaternion::getIdentity(), tf::Vector3(-offset, 0, 0) );
 
@@ -1334,6 +1348,20 @@ actionlib::SimpleClientGoalState TrajCtrl::executeRangeFindingAction(bool mode) 
       pickMinimumEffortConfiguration( getInverseConfigurations(tf_left), config_start );
   TrajCtrl::Configuration config_right = 
       pickMinimumEffortConfiguration( getInverseConfigurations(tf_right), config_start );
+
+  // Eliminate excess wrist3 joint movement
+  std::vector<TrajCtrl::Configuration*> configs {&config_left, &config_right};
+  double delta = 0.001;
+  double wrist_3_difference;
+  for (auto config: configs)
+  {
+    wrist_3_difference = std::abs((*config)[WRIST_3_JOINT] - config_start[WRIST_3_JOINT]);
+    if (wrist_3_difference < 2*M_PI + delta && wrist_3_difference > 2*M_PI - delta )
+    {
+      // wrist 3 rotates 2pi, set two joint values to be the same
+      (*config)[WRIST_3_JOINT] = config_start[WRIST_3_JOINT];
+    }
+  }
 
   /* Move start -> left -> right -> start */
 
