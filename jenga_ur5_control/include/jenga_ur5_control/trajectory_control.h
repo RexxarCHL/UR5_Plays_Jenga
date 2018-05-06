@@ -171,9 +171,9 @@ private:
   std::vector<std::pair<double, double>> range_finder_data_;
   //tf::Transform tf_expected_;
   std::map<std::string, Configuration> stored_configurations_;
-  tf::Vector3 compensation_result_;
+  std::array<tf::Vector3, 4> compensation_result_;
   std::set<int> error_indices_;
-  std::array<double, 2> distance_to_tower_;
+  std::array<double, 4> distance_to_tower_;
 
   // Tool related
   bool tool_feedback_flag_; // Flag to indicate if there is a new message available
@@ -261,7 +261,7 @@ private:
    */
   Configuration tieBreak(std::vector<Configuration> configs, tf::Transform target_transform);
 
-  Configuration checkStoredConfigurations(std::string frame_name, Configuration reference_config);
+  Configuration checkStoredConfigurations(std::string frame_name, Configuration reference_config = TrajCtrl::Configuration());
 
   /*******************************************************************
    *                         TF MANIPULATION                         *

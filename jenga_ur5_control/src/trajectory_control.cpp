@@ -25,7 +25,7 @@ TrajCtrl::TrajCtrl(ros::NodeHandle* nh): nh_(*nh)
   is_probing_ = false;
   is_range_finding_ = false;
 
-  compensation_result_ = tf::Vector3(0, 0, 0);
+  std::fill(compensation_result_.begin(), compensation_result_.end(), tf::Vector3(0, 0, 0));
 
   initializeSubscriber();
   initializePublisher();
@@ -245,7 +245,6 @@ void TrajCtrl::initializeWaypointsAndCompensations()
     ROS_INFO("Executing range finding action to find positional compensation for the tower");
     debugBreak();
     executeRangeFindingAction(false);
-    debugBreak();
     calculateDistance();
     debugBreak();
     calculateCompensation();
@@ -358,7 +357,6 @@ void TrajCtrl::initializeWaypointsAndCompensations()
 
   /* Open gripper to drop the block */
   ROS_INFO("Reset gripper");
-  debugBreak();
   publishToolCommand(GRIPPER_OPEN_NARROW);
   
   // Wait until the gripper is closed
@@ -746,6 +744,46 @@ TrajCtrl::Configuration TrajCtrl::tieBreak(std::vector<TrajCtrl::Configuration> 
   return rv;
 }
 
+// Check if the configuration is already calculated. If not, calculate configuration
+TrajCtrl::Configuration TrajCtrl::checkStoredConfigurations(std::string frame_name, Configuration reference_config)
+{
+  auto config = stored_configurations_.find(frame_name);
+  if (config != stored_configurations_.end())
+  {
+    ROS_INFO("Configuration found for %s!", frame_name.c_str());
+    return config->second; // Found a configuration
+  }
+
+  ROS_WARN("No configuration for %s found. Calculating...", frame_name.c_str());
+  debugBreak();
+
+  /* Lookup transform on the route */
+  tf::Transform tf_target = compensateEELinkToGripper(retrieveTransform(frame_name));
+
+  /* Call inverse kinematics to get possible configurations */
+  std::vector<TrajCtrl::Configuration> inv_configs_target;
+  inv_configs_target = getInverseConfigurations(tf_target);
+
+  /* Eliminate configurations to only one per waypoint */
+  TrajCtrl::Configuration config_target;
+  // Eliminate configurations for roadmap_above using heuristic method
+  //config_above = eliminateConfigurations(inv_configs_above);
+  config_target = pickMinimumEffortConfiguration(inv_configs_target, reference_config);
+
+  // Eliminate excess wrist3 joint movement
+  double delta = 0.001;
+  double wrist_3_difference = std::abs(config_target[WRIST_3_JOINT] - reference_config[WRIST_3_JOINT]);
+  if (wrist_3_difference < 2*M_PI + delta && wrist_3_difference > 2*M_PI - delta )
+  {
+    // wrist 3 rotates 2pi, set two joint values to be the same
+    config_target[WRIST_3_JOINT] = reference_config[WRIST_3_JOINT];
+  }
+
+  stored_configurations_.insert( std::pair<std::string, TrajCtrl::Configuration>(frame_name, config_target) );
+
+  return config_target;
+}
+
 /*******************************************************************
  *                         TF MANIPULATION                         *
  *******************************************************************/
@@ -824,7 +862,7 @@ tf::Transform TrajCtrl::targetBlockToTargetTransform(int side, int level, int bl
   /* Create a new tf for this block based on the side waypoint */
   tf::Transform tf_block(
       tf::Quaternion::getIdentity(), 
-      tf::Vector3(x_offset, y_offset, 0.0) + compensation_result_);
+      tf::Vector3(x_offset, y_offset, 0.0) + compensation_result_[playing_side_]);
 
   /* Publish this transformation (NOTE: this is relative to side waypoint) */
   tf_broadcaster_.sendTransform(
@@ -920,35 +958,20 @@ control_msgs::FollowJointTrajectoryGoal TrajCtrl::generateTrajectory(int side, t
 
   /* Lookup transform on the route */
   std::string frame_name_above("roadmap_above" + std::to_string(side) );
-  std::string frame_name_side("roadmap_side" + std::to_string(side) );
-
-  tf::Transform tf_above, tf_side;
-  tf_above = compensateEELinkToGripper( retrieveTransform(frame_name_above) );
-  tf_side = compensateEELinkToTool0( retrieveTransform(frame_name_side) );
+  tf::Transform tf_above = compensateEELinkToGripper( retrieveTransform(frame_name_above) );
 
   // DEBUG: show the frames
   tf_broadcaster_.sendTransform(
       tf::StampedTransform(tf_above, ros::Time::now(), "base_link", "tf_above_ee_link"));
-  tf_broadcaster_.sendTransform(
-      tf::StampedTransform(tf_side, ros::Time::now(), "base_link", "tf_side_ee_link"));
 
-  /* Call inverse kinematics to get possible configurations */
-  // TODO: Pre-calculate the waypoint configurations?
-  std::vector<TrajCtrl::Configuration> inv_configs_above, inv_configs_side, inv_configs_target;
-  inv_configs_above = getInverseConfigurations(tf_above);
-  inv_configs_target = getInverseConfigurations(tf_target);
+  /* Call inverse kinematics to get possible configurations for target */
+  std::vector<TrajCtrl::Configuration> inv_configs_target = getInverseConfigurations(tf_target);
 
   /* Eliminate configurations to only one per waypoint */
   TrajCtrl::Configuration config_above, config_target;
   // Eliminate configurations for roadmap_above using heuristic method
-  //config_above = eliminateConfigurations(inv_configs_above);
   config_target = eliminateConfigurations(inv_configs_target, tf_target);
-
-  // Eliminate configurations for roadmap_side and roadmap_block by least difference to its predecessor
-  // The robot moves in this order: roadmap_above -> roadmap_side -> roadmap_block
-  //config_side = pickMinimumEffortConfiguration(inv_configs_side, config_above);
-  //config_target = pickMinimumEffortConfiguration(inv_configs_target, config_above);
-  config_above = pickMinimumEffortConfiguration(inv_configs_above, config_target);
+  config_above = checkStoredConfigurations(frame_name_above, config_target);
 
   /* Drive the arm to the waypoints sequentially */
   ROS_INFO("[generateTrajectory] Initializing new trajectory");
@@ -1033,24 +1056,14 @@ control_msgs::FollowJointTrajectoryGoal TrajCtrl::generateHomingTrajectory(int s
 
   /* Lookup transform on the route */
   std::string frame_name_above("roadmap_above" + std::to_string(side) );
-  std::string frame_name_side("roadmap_side" + std::to_string(side) );
-
-  tf::Transform tf_above, tf_side;
-  tf_above = compensateEELinkToGripper( retrieveTransform(frame_name_above) );
-  tf_side = compensateEELinkToTool0( retrieveTransform(frame_name_side) );
+  tf::Transform tf_above = compensateEELinkToGripper( retrieveTransform(frame_name_above) );
 
   // DEBUG: show the frames
   tf_broadcaster_.sendTransform(
       tf::StampedTransform(tf_above, ros::Time::now(), "base_link", "tf_above_ee_link"));
-  tf_broadcaster_.sendTransform(
-      tf::StampedTransform(tf_side, ros::Time::now(), "base_link", "tf_side_ee_link"));
 
   /* Get the inverse transform */
-  std::vector<Configuration> inv_configs_above = getInverseConfigurations(tf_above);
-
-  /* Eliminate to only one configuration */
-  //TrajCtrl::Configuration config_above = eliminateConfigurations(inv_configs_above);
-  TrajCtrl::Configuration config_above = pickMinimumEffortConfiguration(inv_configs_above, getCurrentJointState().position);
+  TrajCtrl::Configuration config_above = checkStoredConfigurations(frame_name_above, getCurrentJointState().position);
 
   /* Drive the arm to the waypoints sequentially */
   ROS_INFO("[generateHomingTrajectory] Initializing new trajectory");
@@ -1282,7 +1295,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGrippingAction(int mode)
   goal.trajectory = trajectory;
   executeTrajectoryGoal(goal); 
 
-  debugBreak();
+  //debugBreak();
 
   /* Close gripper */
   // Prepare and send the command message
@@ -1482,12 +1495,10 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGripChangeAction()
       tf::StampedTransform(tf_block_drop, ros::Time::now(), "base_link", "tf_block_drop_ee_link"));
 
   /* Move from current position (assumed at home) to drop location */
-  // Get a suitable configuration for target transform
-  std::vector<TrajCtrl::Configuration> v = getInverseConfigurations(tf_block_pickup);
-  //driveToEveryConfig(v);
-  TrajCtrl::Configuration config_pickup = eliminateConfigurations(v, tf_block_pickup);
-  //TrajCtrl::Configuration config_drop = pickMinimumEffortConfiguration( getInverseConfigurations(tf_block_drop), config_pickup );
-  TrajCtrl::Configuration config_drop = eliminateConfigurations(getInverseConfigurations(tf_block_drop), tf_block_drop);
+  // These configurations are precalculated at initialization stage
+  TrajCtrl::Configuration config_pickup = checkStoredConfigurations("roadmap_block_pickup");
+  TrajCtrl::Configuration config_drop = checkStoredConfigurations("roadmap_block_pickup");
+  TrajCtrl::Configuration config_rest = checkStoredConfigurations("roadmap_block_rest");
 
   // Initialize trajectory
   trajectory_msgs::JointTrajectory trajectory;
@@ -1525,7 +1536,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGripChangeAction()
   actionlib::SimpleClientGoalState status = executeTrajectoryGoal(goal);
   ROS_INFO("[executeGripChangeAction] Moving to drop position done, with status %s", status.toString().c_str() );
 
-  debugBreak();
+  //debugBreak();
 
   /* Open gripper to drop the block */
   ROS_INFO("[executeGripChangeAction] Opening gripper");
@@ -1550,13 +1561,19 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGripChangeAction()
   joints_pickup.time_from_start = ros::Duration(5.0);
   trajectory.points.push_back(joints_pickup);
 
+  trajectory_msgs::JointTrajectoryPoint joints_rest;
+  joints_rest.positions = config_rest;
+  joints_rest.velocities = zero_vector;
+  joints_rest.time_from_start = ros::Duration(10.0);
+  trajectory.points.push_back(joints_rest);
+
   // Send the trajectory
   goal.trajectory = trajectory; 
   status = executeTrajectoryGoal(goal);
   ROS_INFO("[executeGripChangeAction] Moving to position above the block block done, with status %s", 
       status.toString().c_str() );
 
-  debugBreak();
+  //debugBreak();
 
   /* Pick up the block on the long side */
   status = executeGrippingAction(GRIPPER_CLOSE_WIDE);
@@ -1704,11 +1721,11 @@ actionlib::SimpleClientGoalState TrajCtrl::moveToPlaceBlockPosition()
   if (top_orientation_)
     tf_target = tf::Transform( 
         tf::Quaternion::getIdentity(), 
-        tf::Vector3(0, block * 0.025, 0) + compensation_result_);
+        tf::Vector3(0, block * 0.025, 0) + compensation_result_[playing_side_]);
   else
   {
     tf::Quaternion q; q.setRPY(0, 0, M_PI/2); // Rotate +z 90 degrees
-    tf_target = tf::Transform( q, tf::Vector3(block * 0.025, 0, 0) + compensation_result_);
+    tf_target = tf::Transform( q, tf::Vector3(block * 0.025, 0, 0) + compensation_result_[playing_side_]);
   }
 
   tf_target = compensateEELinkToGripper(tf_direct_above * tf_target);
@@ -1717,8 +1734,9 @@ actionlib::SimpleClientGoalState TrajCtrl::moveToPlaceBlockPosition()
 
   /* Get the configuration for target transform */
   TrajCtrl::Configuration config_start = getCurrentJointState().position; // Save current configuration for when action is done
+  TrajCtrl::Configuration config_direct_above = checkStoredConfigurations("roadmap_direct_above", config_start);
   TrajCtrl::Configuration config_target = 
-      pickMinimumEffortConfiguration( getInverseConfigurations(tf_target), config_start );
+      pickMinimumEffortConfiguration( getInverseConfigurations(tf_target), config_direct_above );
 
   /* Initialize trajectory */
   ROS_INFO("[executePlaceBlockAction] Initializing trajectory");
@@ -1732,14 +1750,21 @@ actionlib::SimpleClientGoalState TrajCtrl::moveToPlaceBlockPosition()
   joints_current.velocities = zero_vector;
   joints_current.time_from_start = ros::Duration(0.0); // Start immediately
   trajectory.points.push_back(joints_current);
+
+  // Move to direct above waypoint
+  trajectory_msgs::JointTrajectoryPoint joints_direct_above;
+  joints_direct_above.positions = config_direct_above;
+  joints_direct_above.velocities = zero_vector;
+  joints_direct_above.time_from_start = ros::Duration(5.0); // Start immediately
+  trajectory.points.push_back(joints_direct_above);
   ROS_INFO("[executePlaceBlockAction] Point 1:");
-  debugPrintJoints(joints_current.positions);
+  debugPrintJoints(joints_direct_above.positions);
 
   // Then drive to target position
   trajectory_msgs::JointTrajectoryPoint joints_target;
   joints_target.positions = config_target;
   joints_target.velocities = zero_vector;
-  joints_target.time_from_start = ros::Duration(5.0);
+  joints_target.time_from_start = ros::Duration(10.0);
   trajectory.points.push_back(joints_target);
   ROS_INFO("[executePlaceBlockAction] Point 2:");
   debugPrintJoints(joints_target.positions);
@@ -1979,7 +2004,7 @@ void TrajCtrl::calculateCompensation()
   ROS_INFO("mid: %f, bias: %f", mid_point, y_bias);
   mid_point -= y_bias;
   ROS_INFO("Compensation: %f", mid_point);
-  compensation_result_ = tf::Vector3(mid_point, 0.0, 0.0);
+  compensation_result_[playing_side_] = tf::Vector3(mid_point, 0.0, 0.0);
 
 
   /* Clean up */
