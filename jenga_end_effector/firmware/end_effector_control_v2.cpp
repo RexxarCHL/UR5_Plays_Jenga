@@ -110,7 +110,7 @@ void publishRangeMessage()
   if(status == VL6180X_ERROR_NONE)
     sensor_msg.data = (float)range / 10; // cm
   else
-    sensor_msg.data = 10.0;
+    sensor_msg.data = 20.0;
   range_publisher.publish(&sensor_msg);
 }
 
@@ -171,7 +171,7 @@ void setup()
   }
 
   // Load cell
-  load_cell.set_scale(-12622.0); // Calibration value
+  load_cell.set_scale(20890.0); // Calibration value
   load_cell.tare();
 }
 
