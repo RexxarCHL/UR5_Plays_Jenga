@@ -39,7 +39,7 @@ int main(int argc, char** argv)
 
   // roadmap/block_rest to roadmap_block_pickup
   q; q.setRPY(0, 0, 0);
-  tf::Transform tf_rest_to_pickup(q, tf::Vector3(0.0, 0.0, -0.065));
+  tf::Transform tf_rest_to_pickup(q, tf::Vector3(0.0, 0.0, -0.07));
 
 
 	/* Wait for ar_marker_5 to spawn */
@@ -89,7 +89,7 @@ int main(int argc, char** argv)
     tf_listener.lookupTransform("base_link", "ar_marker_5", now, tf_stamped);
     q = tf_stamped.getRotation();
     t = tf_stamped.getOrigin();
-    t.setZ(0.004); // card board is 4mm thick
+    t.setZ(0.005); // card board is 4mm thick
 
     // Check if pose is changed
     diff_q = prev_q - q;

@@ -150,7 +150,6 @@ int main(int argc, char** argv)
       // Ignore all other rotations except yaw to ensure the tower is straight up
       tower_rotation.setRPY(0, 0, sum_rpy.yaw / available_frame);
     }
-/*
     // Store variables on the previous iteration
     prev_tower_translation = tower_translation;
     prev_tower_rotation = tower_rotation;
@@ -186,7 +185,7 @@ int main(int argc, char** argv)
 
       tower_rotation.setRPY(tower_rpy.roll, tower_rpy.pitch, tower_rpy.yaw);
     }
-*/
+
     tf::Transform tf_tower(tower_rotation, tower_translation);
 
     ROS_INFO("Available_frame: %d, x: %.3f, y: %.3f, z: %.3f", available_frame, tower_translation.getX(), tower_translation.getY(), tower_translation.getZ() );
