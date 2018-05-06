@@ -68,6 +68,14 @@ int main(int argc, char** argv)
   // Wait for a wild ar_marker_1 to appear
   tf_listener.waitForTransform("ar_marker_1", "base_link", ros::Time(), ros::Duration(5.0));
 
+  //std::array<bool, 4> frame_exists { {0, 0, 0, 0} }; // double brackets needed in C++11
+  std::array<std::string, 4> marker_name { {"ar_marker_1", "ar_marker_2", "ar_marker_3", "ar_marker_4"} };
+  tf::StampedTransform tf_stamped;
+  tf::Matrix3x3 rotation_matrix;
+  std::array<tf::Vector3, 4> tf_markers_translation;
+  std::array<struct rpy, 4> tf_markers_rpy;
+
+
   /* Prior knowledge of the tracking paper: AR marker is 90mm, tower is 75mm
    *  ___       ___
    * | 1 |     | 2 |
@@ -85,91 +93,31 @@ int main(int argc, char** argv)
   translation_to_tower[2] = tf::Vector3(-xy_offset,  xy_offset, 0); // Marker 3
   translation_to_tower[3] = tf::Vector3( xy_offset,  xy_offset, 0); // Marker 4
 
-  //std::array<bool, 4> frame_exists { {0, 0, 0, 0} }; // double brackets needed in C++11
-  bool frame_exists = false;
-  int available_frame = 0;
-  std::array<std::string, 4> marker_name { {"ar_marker_1", "ar_marker_2", "ar_marker_3", "ar_marker_4"} };
-  tf::StampedTransform tf_stamped;
-  tf::Matrix3x3 rotation_matrix;
-  std::array<tf::Vector3, 4> tf_markers_translation, prev_markers_translation;
-  std::array<tf::Quaternion, 4> tf_markers_rotation, prev_markers_rotation;
-  tf::Vector3 diff_translation;
-  tf::Quaternion diff_rotation;
-  std::array<struct rpy, 4> tf_markers_rpy, prev_markers_rpy;
-  std::array<int, 4> learning_counters { {0, 0, 0, 0} }; // double brackets needed in C++11
-  double alpha;
-  struct rpy this_rpy;
-  tf::Vector3 tower_translation;
-  tf::Quaternion tower_rotation;
-
   ros::Rate rate(10);
+  tf::Vector3 tower_translation, prev_tower_translation, diff_t;
+  tf::Quaternion tower_rotation, prev_tower_rotation, diff_q;
+  struct rpy tower_rpy, prev_tower_rpy;
+  tf::Matrix3x3 rot_mtx;
+  int learning_counter = 0;
+  double alpha;
   while ( nh.ok() )
   {
     tf::Vector3 sum_translation(0.0, 0.0, 0.0);
     struct rpy  sum_rpy {0.0, 0.0, 0.0};
-    available_frame = 0;
+    int available_frame = 0;
+    bool frame_exists = false;
 
     for (int i = 0; i < 4; i++)
     {
-      // Store variables on the previous iteration
-      prev_markers_translation[i] = tf_markers_translation[i];
-      prev_markers_rotation[i] = tf_markers_rotation[i];
-      prev_markers_rpy[i] = tf_markers_rpy[i];
-
-      // Fetch marker i at current time
       ros::Time now = ros::Time::now();
       frame_exists = tf_listener.waitForTransform("base_link", marker_name[i], now, ros::Duration(0.5));
 
       if (!frame_exists)
-      {
         continue; // Ignore unavailable marker
-        learning_counters[i] = 0; // Reset moving average learning counter
-      }
 
-      // Get marker pose
       tf_listener.lookupTransform("base_link", marker_name[i], now, tf_stamped);
       tf_markers_translation[i] = tf_stamped.getOrigin();
-      tf_markers_rotation[i] = tf_stamped.getRotation();
-
-      // Check if the pose is changed
-      diff_translation = prev_markers_translation[i] - tf_markers_translation[i];
-      diff_rotation = prev_markers_rotation[i] - tf_markers_rotation[i];
-      if (diff_translation.length() > MAX_P_DIFF || diff_rotation.length() > MAX_Q_DIFF)
-      {
-        // Pose drastically changed; reset counter to learn the new pose
-        ROS_WARN("[marker #%d] POSE CHANGED!", i);
-        ROS_WARN("[marker #%d] %f, %f", i, diff_rotation.length(), diff_translation.length());
-        learning_counters[i] = 0;
-      }
-
-      // Pick appropriate alpha
-      if (learning_counters[i] < LEARNING_ITERATIONS)
-      {
-        alpha = ALPHA_INITIAL;
-        learning_counters[i]++;
-      }
-      else
-        alpha = ALPHA_LOOP;
-
-      // Moving average update, except on the 1st iteration
-      if(learning_counters[i] > 1)
-      {
-        // Get RPY
-        rotation_matrix.setRotation(tf_markers_rotation[i]);
-        rotation_matrix.getRPY(tf_markers_rpy[i].roll, tf_markers_rpy[i].pitch, tf_markers_rpy[i].yaw);
-      
-        // Moving average update
-        tf_markers_translation[i] = alpha * tf_markers_translation[i] + (1.0 - alpha) * prev_markers_translation[i];
-
-        tf_markers_rpy[i].roll = alpha * tf_markers_rpy[i].roll + (1.0 - alpha) * prev_markers_rpy[i].roll;
-        tf_markers_rpy[i].pitch = alpha * tf_markers_rpy[i].pitch + (1.0 - alpha) * prev_markers_rpy[i].pitch;
-        tf_markers_rpy[i].yaw = alpha * tf_markers_rpy[i].yaw + (1.0 - alpha) * prev_markers_rpy[i].yaw;
-
-        tf_markers_rotation[i].setRPY(tf_markers_rpy[i].roll, tf_markers_rpy[i].pitch, tf_markers_rpy[i].yaw);
-      }
-
-      // Update RPY
-      rotation_matrix.setRotation(tf_markers_rotation[i]);
+      rotation_matrix = tf_stamped.getBasis();
       rotation_matrix.getRPY(tf_markers_rpy[i].roll, tf_markers_rpy[i].pitch, tf_markers_rpy[i].yaw);
 
       // Do R*p calculation to rotate the relative tower translation based on rotation of the marker
@@ -203,9 +151,45 @@ int main(int argc, char** argv)
       tower_rotation.setRPY(0, 0, sum_rpy.yaw / available_frame);
     }
 
+    // Store variables on the previous iteration
+    prev_tower_translation = tower_translation;
+    prev_tower_rotation = tower_rotation;
+    prev_tower_rpy = tower_rpy;
+
+    // Check if pose is changed
+    diff_q = prev_tower_rotation - tower_rotation;
+    diff_t = prev_tower_translation - tower_translation;
+    if (diff_q.length() > MAX_Q_DIFF || diff_t.length() > MAX_P_DIFF)
+    {
+      // Pose drastically changed; reset counter to learn the new positions
+      ROS_WARN("[Tower Broadcaster] POSE CHANGED!");
+      ROS_WARN("[Tower Broadcaster] %f, %f", diff_q.length(), diff_t.length());
+      learning_counter = 0; // reset counter to use alpha_initial
+    }
+
+    if (learning_counter < LEARNING_ITERATIONS)
+    {
+      alpha = ALPHA_INITIAL;
+      learning_counter++;
+    }
+    else
+      alpha = ALPHA_LOOP;
+
+    rot_mtx.setRotation(tower_rotation);
+    rot_mtx.getRPY(tower_rpy.roll, tower_rpy.pitch, tower_rpy.yaw);
+    if (learning_counter > 1) // Update except on the 1st iteration
+    {
+      tower_translation = alpha * tower_translation + (1.0 - alpha) * prev_tower_translation;
+      tower_rpy.roll = alpha * tower_rpy.roll + (1.0 - alpha) * tower_rpy.roll;
+      tower_rpy.pitch = alpha * tower_rpy.pitch + (1.0 - alpha) * tower_rpy.pitch;
+      tower_rpy.yaw = alpha * tower_rpy.yaw + (1.0 - alpha) * tower_rpy.yaw;
+
+      tower_rotation.setRPY(tower_rpy.roll, tower_rpy.pitch, tower_rpy.yaw);
+    }
+
     tf::Transform tf_tower(tower_rotation, tower_translation);
 
-    ROS_INFO("Available_frame: %d, x: %.3f, y: %.3f, z: %.3f\n", available_frame, tower_translation.getX(), tower_translation.getY(), tower_translation.getZ() );
+    ROS_INFO("Available_frame: %d, x: %.3f, y: %.3f, z: %.3f", available_frame, tower_translation.getX(), tower_translation.getY(), tower_translation.getZ() );
 
     tf_broadcaster.sendTransform(
         tf::StampedTransform(tf_tower, ros::Time::now(), "base_link", "ar_tower_location") );
