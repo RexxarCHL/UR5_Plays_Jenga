@@ -33,6 +33,8 @@ TrajCtrl::TrajCtrl(ros::NodeHandle* nh): nh_(*nh)
   initializeActionClient();
 
   ros::spinOnce(); // ensure callbacks work properly
+
+  initializeWaypointsAndCompensations();
 }
 
 /**
@@ -115,6 +117,244 @@ void TrajCtrl::initializeServiceClient()
     service_exists = inverse_kinemaitcs_client_.waitForExistence(ros::Duration(1.0));
   }
   ROS_INFO("Service now available");
+}
+
+void TrajCtrl::initializeWaypointsAndCompensations()
+{  
+  /* Get which side to play on */
+  std::array<tf::Transform, 4> tf_side;
+  std::array<double, 4> angles, distances;
+  double min_distance = 999999.99;
+  double delta = 0.001;
+  int min_index = -1;
+  for (int i = 0; i < 4; ++i)
+  {
+    tf_side[i] = retrieveTransform(SIDE_FRAME_NAMES_[i]);
+    tf::Vector3 p = tf_side[i].getOrigin();
+    double x = p.getX();
+    double y = p.getY();
+    angles[i] = std::atan2(y, x);
+    distances[i] = std::sqrt(x*x + y*y);
+
+    if (distances[i] < min_distance)
+    {
+      min_distance = distances[i];
+      min_index = i;
+    }
+  }
+
+  // Do another pass to check for equal distances, albeit a very small chance
+  for (int i = 0; i < 4; ++i)
+    if (i != min_index && distances[i] < min_distance + delta && distances[i] > min_distance - delta)
+    {
+      // In case of equal distances, choose the one with smaller angle
+      if(angles[i] < angles[min_index])
+        min_index = i;
+    }
+
+  // Calculate the sides to play on currently
+  int this_side = (min_index + 1) % 2;
+  //int other_side = (side + 2) % 4;
+  std::array<int, 2> sides {{this_side , (this_side + 2) % 4}};
+  ROS_INFO("Initializing inverse configurations and compensations on side %d and %d", sides[0], sides[1]);
+
+  trajectory_msgs::JointTrajectory trajectory; // Initialize new trajectory
+  trajectory.joint_names = UR_JOINT_NAMES_;
+  std::vector<double> zero_vector{0, 0, 0, 0, 0, 0};
+  control_msgs::FollowJointTrajectoryGoal goal;
+  trajectory_msgs::JointTrajectoryPoint joints_current;
+  for (int i = 0; i < 1; i++)
+  {
+    this_side = sides[i];
+    ROS_INFO("Moving to side %d", this_side);
+    debugBreak();
+
+    playing_side_ = this_side;
+
+    /* Lookup transform on probing side */
+    tf::Transform tf_above, tf_side;
+    tf_above = compensateEELinkToGripper( retrieveTransform(ABOVE_FRAME_NAMES_[this_side]) );
+    tf_side = compensateEELinkToTool0( retrieveTransform(SIDE_FRAME_NAMES_[this_side]) );
+
+    // DEBUG: show the frames
+    tf_broadcaster_.sendTransform(
+        tf::StampedTransform(tf_above, ros::Time::now(), "base_link", "tf_above_ee_link"));
+    tf_broadcaster_.sendTransform(
+        tf::StampedTransform(tf_side, ros::Time::now(), "base_link", "tf_side_ee_link"));
+
+    /* Call inverse kinematics to get possible configurations */
+    std::vector<TrajCtrl::Configuration> inv_configs_above, inv_configs_side;
+    inv_configs_above = getInverseConfigurations(tf_above);
+    inv_configs_side = getInverseConfigurations(tf_side);
+
+    /* Eliminate configurations to only one per waypoint */
+    TrajCtrl::Configuration config_above, config_side;
+    // Eliminate configurations for roadmap_side using heuristic method
+    config_side = eliminateConfigurations(inv_configs_side, tf_side);
+    // Eliminate configurations for roadmap_above by least difference to roadmap_side
+    config_above = pickMinimumEffortConfiguration(inv_configs_above, config_side);
+
+    /* Drive the arm to the waypoints sequentially */
+    // All actions start with current position
+    joints_current.positions = getCurrentJointState().position;
+    joints_current.velocities = zero_vector;
+    joints_current.time_from_start = ros::Duration(0.0); // Start immediately
+    trajectory.points.push_back(joints_current);
+
+    ROS_INFO("Point 1:");
+    debugPrintJoints(joints_current.positions);
+
+    // Then drive to above position
+    trajectory_msgs::JointTrajectoryPoint joints_above;
+    joints_above.positions = config_above;
+    joints_above.velocities = zero_vector;
+    joints_above.time_from_start = ros::Duration(5.0); // TODO: tune this time
+    trajectory.points.push_back(joints_above);
+    ROS_INFO("Point 2:");
+    debugPrintJoints(joints_above.positions);
+
+    
+    // Then drive to side position
+    trajectory_msgs::JointTrajectoryPoint joints_side;
+    joints_side.positions = config_side;
+    joints_side.velocities = zero_vector;
+    joints_side.time_from_start = ros::Duration(10.0);
+    trajectory.points.push_back(joints_side);
+    ROS_INFO("Point 3:");
+    debugPrintJoints(joints_side.positions);
+
+    goal.trajectory = trajectory;
+    executeTrajectoryGoal(goal);
+    trajectory.points.clear();
+
+    // If the user had not emergency stop and kill the program by now, this configuration is probably OK
+    // Store this configuration for future reference
+    stored_configurations_.insert( std::pair<std::string, Configuration>(ABOVE_FRAME_NAMES_[this_side], config_above) );
+
+    ROS_INFO("Executing range finding action to find positional compensation for the tower");
+    debugBreak();
+    executeRangeFindingAction(false);
+    debugBreak();
+    calculateDistance();
+    debugBreak();
+    calculateCompensation();
+
+    ROS_INFO("Moving back home");
+    debugBreak();
+    generateHomingTrajectory(this_side);
+  }
+  
+  ROS_INFO("Checking drop configuration...");
+  debugBreak();
+
+  /* Retrieve necessary transformations and calculate necessary parameters */
+  tf::Transform tf_block_drop = retrieveTransform("roadmap_block_drop");
+  tf::Transform tf_block_pickup = retrieveTransform("roadmap_block_pickup");
+  tf::Transform tf_block_rest = retrieveTransform("roadmap_block_rest");
+
+  tf_block_drop = compensateEELinkToGripper(tf_block_drop);
+  tf_block_pickup = compensateEELinkToGripper(tf_block_pickup);
+  tf_block_rest = compensateEELinkToGripper(tf_block_rest);
+
+  tf_broadcaster_.sendTransform(
+      tf::StampedTransform(tf_block_drop, ros::Time::now(), "base_link", "tf_block_drop_ee_link"));
+
+  /* Move from current position (assumed at home) to drop location */
+  // Get a suitable configuration for target transform
+  TrajCtrl::Configuration config_pickup = eliminateConfigurations(getInverseConfigurations(tf_block_pickup), tf_block_pickup);
+  TrajCtrl::Configuration config_rest = pickMinimumEffortConfiguration(getInverseConfigurations(tf_block_rest), config_pickup);
+  TrajCtrl::Configuration config_drop = eliminateConfigurations(getInverseConfigurations(tf_block_drop), tf_block_drop);
+
+  // Start with current position
+  joints_current.positions = getCurrentJointState().position;
+  trajectory.points.push_back(joints_current);
+
+  // Move to drop location
+  trajectory_msgs::JointTrajectoryPoint joints_drop;
+  joints_drop.positions = config_drop;
+  joints_drop.velocities = zero_vector;
+  joints_drop.time_from_start = ros::Duration(6.0);
+  trajectory.points.push_back(joints_drop);
+
+  // Send the trajectory
+  goal.trajectory = trajectory;
+  executeTrajectoryGoal(goal);
+  ROS_INFO("Moving to drop position done");
+
+  ROS_INFO("You can manually move the robot to an appropriate drop position");
+  debugBreak();
+  config_drop = getCurrentJointState().position;
+
+  /* Open gripper to drop the block */
+  ROS_INFO("Opening gripper");
+  publishToolCommand(GRIPPER_OPEN_WIDE);
+  
+  // Wait until the gripper is closed
+  blockUntilToolFeedback(jenga_msgs::EndEffectorFeedback::ACK_GRIPPER_OPENED);
+
+  /* Move to block pickup position */
+  // Reset the trajectory points
+  trajectory.points.clear();
+
+  // Start with current position
+  joints_current.positions = getCurrentJointState().position;
+  trajectory.points.push_back(joints_current);
+
+  // Move to the position above the block
+  trajectory_msgs::JointTrajectoryPoint joints_pickup;
+  joints_pickup.positions = config_pickup;
+  joints_pickup.velocities = zero_vector;
+  joints_pickup.time_from_start = ros::Duration(5.0);
+  trajectory.points.push_back(joints_pickup);
+
+  trajectory_msgs::JointTrajectoryPoint joints_rest;
+  joints_rest.positions = config_rest;
+  joints_rest.velocities = zero_vector;
+  joints_rest.time_from_start = ros::Duration(5.0);
+  trajectory.points.push_back(joints_rest);
+
+  // Send the trajectory
+  goal.trajectory = trajectory; 
+  executeTrajectoryGoal(goal);
+
+  ROS_INFO("You can manually move the robot to an appropriate pickup position");
+  debugBreak();
+  config_rest = getCurrentJointState().position;
+
+  /* Move to the position above the dropped block */
+  // Reset the trajectory points
+  trajectory.points.clear();
+
+  // Start with current position
+  joints_current.positions = getCurrentJointState().position;
+  trajectory.points.push_back(joints_current);
+
+  // Move to the position above the block
+  trajectory.points.push_back(joints_pickup);
+
+  // Send the trajectory
+  goal.trajectory = trajectory; 
+  executeTrajectoryGoal(goal);
+
+  // If the user had not emergency stop and kill the program by now, this configuration is probably OK
+  // Store this configuration for future reference
+  stored_configurations_.insert( std::pair<std::string, Configuration>("roadmap_block_drop", config_drop) );
+  stored_configurations_.insert( std::pair<std::string, Configuration>("roadmap_block_pickup", config_pickup) );
+  stored_configurations_.insert( std::pair<std::string, Configuration>("roadmap_block_rest", config_rest) );
+
+  /* Open gripper to drop the block */
+  ROS_INFO("Opening gripper");
+  debugBreak();
+  publishToolCommand(GRIPPER_OPEN_NARROW);
+  
+  // Wait until the gripper is closed
+  blockUntilToolFeedback(jenga_msgs::EndEffectorFeedback::ACK_GRIPPER_OPENED);
+
+  ROS_INFO("Moving back home");
+  debugBreak();
+  generateHomingTrajectory(5);
+  
+  ROS_INFO("Waypoint and compensations initialized");
 }
 
 /**
@@ -987,7 +1227,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGrippingAction(int mode)
     //double offset = tf_block_pickup.getOrigin().getZ() - tf_block_rest.getOrigin().getZ();
     tf_target = tf::Transform( 
         tf::Quaternion::getIdentity(), 
-        tf::Vector3(0, 0, 0.065) );
+        tf::Vector3(0, 0, 0.060) );
         //tf::Vector3(0, 0, above_offset - GRIPPER_FRAME_TIP_OFFSET_) );
   }
 
@@ -1066,7 +1306,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGrippingAction(int mode)
 /**
  * Move to the +x direction 25mm, then to -x direction 50mm, then return to start position
  */
-actionlib::SimpleClientGoalState TrajCtrl::executeRangeFindingAction()
+actionlib::SimpleClientGoalState TrajCtrl::executeRangeFindingAction(bool mode) // default = true
 {
   ROS_INFO("Executing range finding action");
 
@@ -1081,8 +1321,9 @@ actionlib::SimpleClientGoalState TrajCtrl::executeRangeFindingAction()
   //target_translation.setZ( target_translation.getZ() - 0.050 );
   //tf::Transform tf_right(tf_range_finder.getRotation(), target_translation);
 
-  tf::Transform tf_left( tf::Quaternion::getIdentity(), tf::Vector3(0.035, 0, 0) );
-  tf::Transform tf_right( tf::Quaternion::getIdentity(), tf::Vector3(-0.035, 0, 0) );
+  double offset = mode? 0.035 : 0.05;
+  tf::Transform tf_left( tf::Quaternion::getIdentity(), tf::Vector3(offset, 0, 0) );
+  tf::Transform tf_right( tf::Quaternion::getIdentity(), tf::Vector3(-offset, 0, 0) );
 
   tf_left = compensateEELinkToRangeFinder(tf_range_finder * tf_left);
   tf_right = compensateEELinkToRangeFinder(tf_range_finder * tf_right);
@@ -1142,7 +1383,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeRangeFindingAction()
   trajectory_msgs::JointTrajectoryPoint joints_right;
   joints_right.positions = config_right;
   joints_right.velocities = zero_vector;
-  joints_right.time_from_start = ros::Duration(10.0);
+  joints_right.time_from_start = ros::Duration(mode? 10.0: 15.0);
   trajectory.points.push_back(joints_right);
 
   // Signal the tool to start sending range finder data
@@ -1612,6 +1853,43 @@ void TrajCtrl::rangeCallback(const jenga_msgs::Probe::ConstPtr& msg)
 
   std::pair<double, double> current_data(tf_stamped.getOrigin().getX(), range);
   range_finder_data_.push_back(current_data);
+}
+
+void TrajCtrl::calculateDistance()
+{
+  ROS_INFO("Calculating distance to tower");
+  /* Unzip the data */
+  std::vector<double> data;
+  for (auto p: range_finder_data_)
+    data.push_back(p.second);
+
+  /* Calculate the mid point of the block from the min and max indices */
+  std::pair<int, int> peak_indices = getPeaks(rollingMean(diff(rollingMean(data))));
+  int peak1_index = peak_indices.first;
+  int peak2_index = peak_indices.second;
+  ROS_INFO("peaks: %d, %d", peak1_index, peak2_index);
+
+  
+  // Give some offset to reach flat area
+  peak1_index += 30;
+  peak2_index -= 30;
+  
+  // Cases to cope with the very off chance that range finder data is not long enough
+  if (peak1_index > data.size())
+    peak1_index = data.size();
+  if (peak2_index < 0)
+    peak2_index = 0;
+  if (peak2_index < peak1_index)
+    std::swap(peak1_index, peak2_index);
+  
+  double sum = 0.0;
+
+  for (int i = peak1_index; i < peak2_index; ++i)
+    sum += data[i];
+
+  distance_to_tower_[playing_side_] = sum / (peak2_index - peak1_index + 1);
+
+  ROS_INFO("Avg distance on side %d: %f", playing_side_, distance_to_tower_[playing_side_]);
 }
 
 void TrajCtrl::calculateCompensation()

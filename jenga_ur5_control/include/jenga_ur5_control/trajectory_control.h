@@ -120,14 +120,18 @@ public:
    */
   actionlib::SimpleClientGoalState executeProbingAction(); // Move in and push 25mm
   actionlib::SimpleClientGoalState executeGrippingAction(int mode); // Move in and close gripper
-  actionlib::SimpleClientGoalState executeRangeFindingAction(); // Move left and right
+  actionlib::SimpleClientGoalState executeRangeFindingAction(bool mode = true); // Move left and right
   actionlib::SimpleClientGoalState executeGripChangeAction();
   actionlib::SimpleClientGoalState executePlaceBlockAction();
 
 private:
-  const std::vector<std::string> UR_JOINT_NAMES_ {
+  const std::vector<std::string> UR_JOINT_NAMES_ {{
       "shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint",
-      "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"};
+      "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"}};
+  const std::array<std::string, 4> SIDE_FRAME_NAMES_ {{
+      "roadmap_side0", "roadmap_side1", "roadmap_side2", "roadmap_side3"}};
+  const std::array<std::string, 4> ABOVE_FRAME_NAMES_ {{
+      "roadmap_above0", "roadmap_above1", "roadmap_above2", "roadmap_above3"}};
   const Configuration HOME_CONFIG_ {0, -M_PI/2, 0, -M_PI/2, 0, 0};
   const float PROBE_FORCE_THRESHOLD_ {30.0};
   const float GRIPPER_FRAME_TIP_OFFSET_ {0.025}; // 15mm + some offset
@@ -166,8 +170,10 @@ private:
   bool is_range_finding_;
   std::vector<std::pair<double, double>> range_finder_data_;
   //tf::Transform tf_expected_;
+  std::map<std::string, Configuration> stored_configurations_;
   tf::Vector3 compensation_result_;
   std::set<int> error_indices_;
+  std::array<double, 2> distance_to_tower_;
 
   // Tool related
   bool tool_feedback_flag_; // Flag to indicate if there is a new message available
@@ -187,6 +193,9 @@ private:
   void initializeActionClient();
   // Initialize inverse kinematics service client
   void initializeServiceClient();
+
+  void initializeWaypointsAndCompensations();
+
 
   /**
    * Callback function for receiving a target block. Move the robot arm to the target location.
@@ -252,6 +261,7 @@ private:
    */
   Configuration tieBreak(std::vector<Configuration> configs, tf::Transform target_transform);
 
+  Configuration checkStoredConfigurations(std::string frame_name, Configuration reference_config);
 
   /*******************************************************************
    *                         TF MANIPULATION                         *
@@ -352,7 +362,12 @@ private:
 
 
   /**
+   * Calculate the average distance to tower 
+   */
+  void calculateDistance();
+  /**
    * Calculate the translational difference using data collected from range finder.
+   * NOTE: CLEARS range_finder_data_ AND error_indices_
    */
   void calculateCompensation();
   /**
