@@ -25,7 +25,7 @@ for i = 1 : 5
     
     x = tf_base / tf_cam;
     q = rotm2eul(x(1:3, 1:3));
-    solution(i, :) = [x(1, 4), x(2, 4), x(3, 4), q];
+    solution(i, :) = [x(1, 4), x(2, 4), x(3, 4), q]
     
     disp('move to next location');
     k = waitforbuttonpress;

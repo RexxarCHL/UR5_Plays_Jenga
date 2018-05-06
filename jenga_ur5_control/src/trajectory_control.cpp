@@ -235,9 +235,6 @@ bool TrajCtrl::playBlock(int side, int level, int block)
   /* Use range finder to find center of the block */
   executeRangeFindingAction();
 
-  saveData(range_finder_data_, "range_finder");
-  range_finder_data_.clear();
-
   ROS_WARN("Executed range finding action. Move to gripping position is next...");
   //debugBreak();
 
@@ -571,7 +568,9 @@ tf::Transform TrajCtrl::targetBlockToTargetTransform(int side, int level, int bl
   ROS_INFO("x_offset = %f, y_offset = %f", x_offset, y_offset);
 
   /* Create a new tf for this block based on the side waypoint */
-  tf::Transform tf_block(tf::Quaternion::getIdentity(), tf::Vector3(x_offset, y_offset, 0.0));
+  tf::Transform tf_block(
+      tf::Quaternion::getIdentity(), 
+      tf::Vector3(x_offset, y_offset, 0.0) + compensation_result_);
 
   /* Publish this transformation (NOTE: this is relative to side waypoint) */
   tf_broadcaster_.sendTransform(
@@ -825,11 +824,11 @@ control_msgs::FollowJointTrajectoryGoal TrajCtrl::generateHomingTrajectory(int s
 
   if (!return_direct) // Not returning directly, i.e. robot is currently in one of four sides
   {
-      // Then drive to above position
+    // Then drive to above position
     trajectory_msgs::JointTrajectoryPoint joints_above;
     joints_above.positions = config_above;
     joints_above.velocities = zero_vector;
-    joints_above.time_from_start = ros::Duration(2.0); // TODO: tune this time
+    joints_above.time_from_start = ros::Duration(3.0); // TODO: tune this time
     trajectory.points.push_back(joints_above);
     ROS_INFO("[generateHomingTrajectory] Point 2:");
     debugPrintJoints(joints_above.positions);
@@ -839,7 +838,7 @@ control_msgs::FollowJointTrajectoryGoal TrajCtrl::generateHomingTrajectory(int s
   trajectory_msgs::JointTrajectoryPoint joints_up;
   joints_up.positions = HOME_CONFIG_;
   joints_up.velocities = zero_vector;
-  joints_up.time_from_start = ros::Duration( (side < 5)? 5.0 : 3.0 );
+  joints_up.time_from_start = ros::Duration( (side < 5)? 8.0 : 6.0 );
   trajectory.points.push_back(joints_up);
   ROS_INFO("[generateHomingTrajectory] Point 3:");
   debugPrintJoints(joints_up.positions);
@@ -1434,11 +1433,13 @@ actionlib::SimpleClientGoalState TrajCtrl::moveToPlaceBlockPosition()
   int block = checkGameState(); // Get empty block slot
   ROS_INFO("block = %d", block);
   if (top_orientation_)
-    tf_target = tf::Transform( tf::Quaternion::getIdentity(), tf::Vector3(0, block * 0.025, 0) );
+    tf_target = tf::Transform( 
+        tf::Quaternion::getIdentity(), 
+        tf::Vector3(0, block * 0.025, 0) + compensation_result_);
   else
   {
     tf::Quaternion q; q.setRPY(0, 0, M_PI/2); // Rotate +z 90 degrees
-    tf_target = tf::Transform( q, tf::Vector3(block * 0.025, 0, 0) );
+    tf_target = tf::Transform( q, tf::Vector3(block * 0.025, 0, 0) + compensation_result_);
   }
 
   tf_target = compensateEELinkToGripper(tf_direct_above * tf_target);
@@ -1636,6 +1637,7 @@ void TrajCtrl::calculateCompensation()
     else
       v.push_back(std::pair<double, double>(smoothed_v[i], smoothed_diff[i]));
   }
+  saveData(range_finder_data_, "range_finder");
   saveData(v, "compensate_debug");
 
   /* Calculate the mid point of the block from the min and max indices */
@@ -1791,7 +1793,7 @@ void TrajCtrl::debugTestFunctions()
 
   executeRangeFindingAction();
 
-  saveData(range_finder_data_, "range_finder");
+  //saveData(range_finder_data_, "range_finder");
   //range_finder_data_.clear();
 
   calculateCompensation();
@@ -1885,7 +1887,7 @@ int main(int argc, char** argv){
   TrajCtrl trajectory_control(&nh);
 
   ros::spinOnce();
-  trajectory_control.debugTestFunctions();
+  //trajectory_control.debugTestFunctions();
 
   ROS_INFO("Initialization complete. Spinning...");
 
