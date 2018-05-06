@@ -34,6 +34,10 @@ TrajCtrl::TrajCtrl(ros::NodeHandle* nh): nh_(*nh)
 
   ros::spinOnce(); // ensure callbacks work properly
 
+  ROS_INFO("Connecting to end effector...");
+  publishToolCommand(GRIPPER_OPEN_NARROW);
+  blockUntilToolFeedback(GRIPPER_OPEN_NARROW);
+
   initializeWaypointsAndCompensations();
 }
 
@@ -158,7 +162,9 @@ void TrajCtrl::initializeWaypointsAndCompensations()
   std::array<int, 2> sides {{this_side , (this_side + 2) % 4}};
 
   ROS_WARN("Initializing inverse configurations and compensations on side %d and %d", sides[0], sides[1]);
+  ROS_WARN("Put the JENGA tower on the paper now.");
   ROS_WARN("Please be aware of the surroundings and put a hand on E-STOP.");
+  debugBreak();
 
   trajectory_msgs::JointTrajectory trajectory; // Initialize new trajectory
   trajectory.joint_names = UR_JOINT_NAMES_;
@@ -169,7 +175,7 @@ void TrajCtrl::initializeWaypointsAndCompensations()
   {
     this_side = sides[i];
     ROS_INFO("Moving to side %d", this_side);
-    debugBreak();
+    //debugBreak();
 
     playing_side_ = this_side;
 
@@ -243,19 +249,15 @@ void TrajCtrl::initializeWaypointsAndCompensations()
     stored_configurations_.insert( std::pair<std::string, Configuration>(ABOVE_FRAME_NAMES_[this_side], config_above) );
 
     ROS_INFO("Executing range finding action to find positional compensation for the tower");
-    debugBreak();
     executeRangeFindingAction(false);
     calculateDistance();
-    debugBreak();
     calculateCompensation();
 
     ROS_INFO("Moving back home");
-    debugBreak();
     moveToHomePosition(this_side);
   }
   
   ROS_INFO("Checking drop configuration...");
-  debugBreak();
 
   /* Retrieve necessary transformations and calculate necessary parameters */
   tf::Transform tf_block_drop = retrieveTransform("roadmap_block_drop");
@@ -317,11 +319,22 @@ void TrajCtrl::initializeWaypointsAndCompensations()
   joints_pickup.velocities = zero_vector;
   joints_pickup.time_from_start = ros::Duration(5.0);
   trajectory.points.push_back(joints_pickup);
+  // Send the trajectory
+  goal.trajectory = trajectory; 
+  executeTrajectoryGoal(goal);
+
+  //debugBreak();
+
+  trajectory.points.clear();
+  // Start with current position
+  joints_current.positions = getCurrentJointState().position;
+  joints_current.time_from_start = ros::Duration(0.0);
+  trajectory.points.push_back(joints_current);
 
   trajectory_msgs::JointTrajectoryPoint joints_rest;
   joints_rest.positions = config_rest;
   joints_rest.velocities = zero_vector;
-  joints_rest.time_from_start = ros::Duration(10.0);
+  joints_rest.time_from_start = ros::Duration(5.0);
   trajectory.points.push_back(joints_rest);
 
   // Send the trajectory
@@ -330,7 +343,6 @@ void TrajCtrl::initializeWaypointsAndCompensations()
 
   ROS_INFO("You can manually move the robot to an appropriate pickup position");
   debugBreak();
-  config_rest = getCurrentJointState().position;
 
   /* Move to the position above the dropped block */
   // Reset the trajectory points
@@ -363,10 +375,10 @@ void TrajCtrl::initializeWaypointsAndCompensations()
   blockUntilToolFeedback(jenga_msgs::EndEffectorFeedback::ACK_GRIPPER_OPENED);
 
   ROS_INFO("Moving back home");
-  debugBreak();
   moveToHomePosition(5);
   
   ROS_INFO("Waypoint and compensations initialized");
+  std::fill(compensation_result_.begin(), compensation_result_.end(), tf::Vector3(0, 0, 0));
 }
 
 /**
@@ -479,6 +491,7 @@ bool TrajCtrl::playBlock(int side, int level, int block)
 
   /* Move arm to range finding position on the other side */
   int other_side = (side + 2) % 4;
+  playing_side_ = other_side;
   moveToActionPosition(RANGE_FINDER, other_side, level, block);
 
   ROS_WARN("Moved to range finding position. Execute action is next...");
@@ -751,6 +764,8 @@ TrajCtrl::Configuration TrajCtrl::checkStoredConfigurations(std::string frame_na
   if (config != stored_configurations_.end())
   {
     ROS_INFO("Configuration found for %s!", frame_name.c_str());
+    debugPrintJoints(config->second);
+    //debugBreak();
     return config->second; // Found a configuration
   }
 
@@ -1137,7 +1152,10 @@ actionlib::SimpleClientGoalState TrajCtrl::executeProbingAction()
   // ===> Move 100mm (0.1m) in total
   //tf::Vector3 target_translation = tf_probe.getOrigin();
   //target_translation.setZ( target_translation.getZ() + 0.1 );
-  tf::Transform tf_target( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, 0.09) );
+  //tf::Transform tf_target( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, 0.09) );
+  tf::Transform tf_target( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, distance_to_tower_[playing_side_] + 0.025) );
+  ROS_INFO("distance = %f", distance_to_tower_[playing_side_] + 0.075);
+  //debugBreak();
 
   tf_target = compensateEELinkToProbe(tf_probe * tf_target);
 
@@ -1175,7 +1193,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeProbingAction()
   publishToolCommand(jenga_msgs::EndEffectorControl::PROBE_ON);
   
   // Wait until the probe is on
-  bool feedback_result = blockUntilToolFeedback(jenga_msgs::EndEffectorFeedback::ACK_PROBE_ON);
+  bool feedback_result = blockUntilToolFeedback(jenga_msgs::EndEffectorControl::PROBE_ON);
   ROS_INFO("[executeProbingAction] Tool feedback: %d", feedback_result);
 
   /* Send the trajectory */
@@ -1197,7 +1215,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeProbingAction()
   publishToolCommand(jenga_msgs::EndEffectorControl::PROBE_OFF);
   
   // Wait until the probe is off
-  feedback_result = blockUntilToolFeedback(jenga_msgs::EndEffectorFeedback::ACK_PROBE_OFF);
+  feedback_result = blockUntilToolFeedback(jenga_msgs::EndEffectorControl::PROBE_OFF);
   ROS_INFO("[executeProbingAction] Tool feedback: %d", feedback_result);
 
   /* Move back to starting position */
@@ -1302,7 +1320,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGrippingAction(int mode)
   publishToolCommand(mode);
   
   // Wait until the gripper is closed
-  bool feedback_result = blockUntilToolFeedback(jenga_msgs::EndEffectorFeedback::ACK_GRIPPER_CLOSED);
+  bool feedback_result = blockUntilToolFeedback(mode);
   ROS_INFO("[executeGrippingAction] Tool feedback: %d", feedback_result);
 
   /* Move back to starting position */
@@ -1431,7 +1449,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeRangeFindingAction(bool mode) 
   publishToolCommand(jenga_msgs::EndEffectorControl::RANGE_ON);
   
   // Wait until the tool says range finder is on
-  bool feedback_result = blockUntilToolFeedback(jenga_msgs::EndEffectorFeedback::ACK_RANGE_ON);
+  bool feedback_result = blockUntilToolFeedback(jenga_msgs::EndEffectorControl::RANGE_ON);
   ROS_INFO("[executeRangeFindingAction] Tool feedback: %d", feedback_result);
 
   // Send the trajectory
@@ -1449,7 +1467,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeRangeFindingAction(bool mode) 
   publishToolCommand(jenga_msgs::EndEffectorControl::RANGE_OFF);
   
   // Wait until the tool says range finder is off
-  feedback_result = blockUntilToolFeedback(jenga_msgs::EndEffectorFeedback::ACK_RANGE_OFF);
+  feedback_result = blockUntilToolFeedback(jenga_msgs::EndEffectorControl::RANGE_OFF);
   ROS_INFO("[executeRangeFindingAction] Tool feedback: %d", feedback_result);
 
 
@@ -1497,7 +1515,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGripChangeAction()
   /* Move from current position (assumed at home) to drop location */
   // These configurations are precalculated at initialization stage
   TrajCtrl::Configuration config_pickup = checkStoredConfigurations("roadmap_block_pickup");
-  TrajCtrl::Configuration config_drop = checkStoredConfigurations("roadmap_block_pickup");
+  TrajCtrl::Configuration config_drop = checkStoredConfigurations("roadmap_block_drop");
   TrajCtrl::Configuration config_rest = checkStoredConfigurations("roadmap_block_rest");
 
   // Initialize trajectory
@@ -1543,7 +1561,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGripChangeAction()
   publishToolCommand(GRIPPER_OPEN_WIDE);
   
   // Wait until the gripper is closed
-  bool feedback_result = blockUntilToolFeedback(jenga_msgs::EndEffectorFeedback::ACK_GRIPPER_OPENED);
+  bool feedback_result = blockUntilToolFeedback(GRIPPER_OPEN_WIDE);
   ROS_INFO("[executeGripChangeAction] Tool feedback: %d", feedback_result);
 
   /* Move to the position above the dropped block */
@@ -1570,14 +1588,31 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGripChangeAction()
   // Send the trajectory
   goal.trajectory = trajectory; 
   status = executeTrajectoryGoal(goal);
-  ROS_INFO("[executeGripChangeAction] Moving to position above the block block done, with status %s", 
+  ROS_INFO("[executeGripChangeAction] Moving to gripping position done, with status %s", 
       status.toString().c_str() );
 
-  //debugBreak();
+  // Close gripper
+  ROS_INFO("[executeGripChangeAction] Closing gripper");
+  publishToolCommand(GRIPPER_CLOSE_WIDE);
+  
+  // Wait until the gripper is closed
+  feedback_result = blockUntilToolFeedback(GRIPPER_CLOSE_WIDE);
+  ROS_INFO("[executeGripChangeAction] Tool feedback: %d", feedback_result);
 
-  /* Pick up the block on the long side */
-  status = executeGrippingAction(GRIPPER_CLOSE_WIDE);
-  ROS_INFO("[executeGripChangeAction] Gripping the block done, with status %s", status.toString().c_str() );
+  trajectory.points.clear();
+  // Start with current position
+  joints_current.positions = getCurrentJointState().position;
+  joints_current.time_from_start = ros::Duration(0.0);
+  trajectory.points.push_back(joints_current);
+
+  // Move to the position above the block
+  joints_pickup.time_from_start = ros::Duration(5.0);
+  trajectory.points.push_back(joints_pickup);
+
+  goal.trajectory = trajectory; 
+  status = executeTrajectoryGoal(goal);
+  ROS_INFO("[executeGripChangeAction] Moving back to position above the block block done, with status %s", 
+      status.toString().c_str() );
 
   return status;
 }
@@ -1640,7 +1675,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executePlaceBlockAction()
   publishToolCommand(GRIPPER_OPEN_WIDE);
   
   // Wait until the gripper is closed
-  bool feedback_result = blockUntilToolFeedback(jenga_msgs::EndEffectorFeedback::ACK_GRIPPER_OPENED);
+  bool feedback_result = blockUntilToolFeedback(GRIPPER_OPEN_WIDE);
   ROS_INFO("[executePlaceBlockAction] Tool feedback: %d", feedback_result);
 
   /* Move back to starting position */
@@ -1663,6 +1698,11 @@ actionlib::SimpleClientGoalState TrajCtrl::executePlaceBlockAction()
   /* Send the trajectory */
   goal.trajectory = trajectory;
   actionlib::SimpleClientGoalState status = executeTrajectoryGoal(goal);
+
+  // Reset tool opening size
+  publishToolCommand(GRIPPER_OPEN_NARROW);
+  feedback_result = blockUntilToolFeedback(GRIPPER_OPEN_NARROW);
+  ROS_INFO("[executePlaceBlockAction] Tool feedback: %d", feedback_result);
 
   ROS_INFO("Placing action done, with status %s", status.toString().c_str() );
   return status;
@@ -1845,22 +1885,48 @@ void TrajCtrl::publishToolCommand(int command_code)
 /**
  * Block until a feedback from the tool is received
  */
-bool TrajCtrl::blockUntilToolFeedback(int expected_feedback_code)
+bool TrajCtrl::blockUntilToolFeedback(int command_code)
 {
-  ROS_INFO("Waiting for feedback %d from the tool...", expected_feedback_code);
   // Spin until flag is raised. Will wait forever
   // Flag is raised when feedbackCallback is called by the subscriber
+  ros::Time timeout = ros::Time::now() + ros::Duration(5.0);
   while (!tool_feedback_flag_)
   {
     ros::spinOnce(); // Process callbacks
-    ROS_INFO_DELAYED_THROTTLE(30, "Still waiting...");
+    ROS_INFO_DELAYED_THROTTLE(5, "Still waiting...");
+
+    if(ros::Time::now() > timeout)
+    {
+      ROS_ERROR("Waited for too long; republishing command %d", command_code);
+      publishToolCommand(command_code);
+      timeout = ros::Time::now() + ros::Duration(5.0);
+    }
   }
 
   // Read feedback code and reset flag
   int received_feedback_code = tool_feedback_code_;
   tool_feedback_flag_ = false;
 
-  ROS_INFO("Received %d", received_feedback_code);
+  int expected_feedback_code;
+  switch (command_code)
+  {
+    case GRIPPER_OPEN_WIDE:
+    case GRIPPER_OPEN_NARROW:
+      expected_feedback_code = jenga_msgs::EndEffectorFeedback::ACK_GRIPPER_OPENED;
+    case GRIPPER_CLOSE_WIDE:
+    case GRIPPER_CLOSE_NARROW:
+      expected_feedback_code = jenga_msgs::EndEffectorFeedback::ACK_GRIPPER_CLOSED;
+    case jenga_msgs::EndEffectorControl::PROBE_ON:
+      expected_feedback_code = jenga_msgs::EndEffectorFeedback::ACK_PROBE_ON;
+    case jenga_msgs::EndEffectorControl::PROBE_OFF:
+      expected_feedback_code = jenga_msgs::EndEffectorFeedback::ACK_PROBE_OFF;
+    case jenga_msgs::EndEffectorControl::RANGE_ON:
+      expected_feedback_code = jenga_msgs::EndEffectorFeedback::ACK_RANGE_ON;
+    case jenga_msgs::EndEffectorControl::RANGE_OFF:
+      expected_feedback_code = jenga_msgs::EndEffectorFeedback::ACK_RANGE_OFF;
+  }
+
+  ROS_INFO("Expected %d, received %d", expected_feedback_code, received_feedback_code);
 
   return (received_feedback_code == expected_feedback_code);
 }
@@ -1870,7 +1936,11 @@ void TrajCtrl::feedbackCallback(const jenga_msgs::EndEffectorFeedback::ConstPtr&
     ROS_WARN("Feedback received but flag is true! Overwriting feedback code.");
   
   tool_feedback_code_ = msg->feedback_code;
-  tool_feedback_flag_ = true; // Raise flag to signal the receptance of a feedback from tool
+
+  if (tool_feedback_code_ < 6)
+    tool_feedback_flag_ = true; // Raise flag to signal the receptance of a feedback from tool
+  else
+    ROS_ERROR("Feedback code >= 6!");
 }
 // Cancel the goal if force is more than PROBE_FORCE_THRESHOLD_
 void TrajCtrl::probeCallback(const jenga_msgs::Probe::ConstPtr& msg)
@@ -1940,7 +2010,7 @@ void TrajCtrl::calculateDistance()
   for (int i = peak1_index; i < peak2_index; ++i)
     sum += data[i];
 
-  distance_to_tower_[playing_side_] = sum / (peak2_index - peak1_index + 1);
+  distance_to_tower_[playing_side_] = sum / (peak2_index - peak1_index + 1) / 100;
 
   ROS_INFO("Avg distance on side %d: %f", playing_side_, distance_to_tower_[playing_side_]);
 }
@@ -2117,21 +2187,16 @@ void TrajCtrl::debugTestFunctions()
   playing_side_ = 0;
   playing_level_ = 7;
   playing_block_ = 0;
-  moveToActionPosition(RANGE_FINDER, (playing_side_+2)%4, playing_level_, playing_block_);
 
-  ROS_WARN("Moved to range finding position. Execute action is next...");
-  debugBreak();
+  /* Move arm to probing position */
+  //moveToActionPosition(PROBE, playing_side_, playing_level_, playing_block_);
 
-  executeRangeFindingAction();
-
-  //saveData(range_finder_data_, "range_finder");
-  //range_finder_data_.clear();
-
-  calculateCompensation();
-  debugBreak();
+  //ROS_WARN("Moved to probing position. Exectue probing is next...");
   //debugBreak();
-  //executeGripChangeAction();
-  //debugBreak();
+
+  executeGripChangeAction();
+
+
 }
 
 void TrajCtrl::driveToEveryConfig(std::vector<TrajCtrl::Configuration> configs)
@@ -2218,7 +2283,7 @@ int main(int argc, char** argv){
   TrajCtrl trajectory_control(&nh);
 
   ros::spinOnce();
-  //trajectory_control.debugTestFunctions();
+  trajectory_control.debugTestFunctions();
 
   ROS_INFO("Initialization complete. Spinning...");
 

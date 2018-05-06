@@ -179,7 +179,7 @@ private:
   bool tool_feedback_flag_; // Flag to indicate if there is a new message available
   int tool_feedback_code_;  // Feedback from the tool
   void publishToolCommand(int command_code);
-  bool blockUntilToolFeedback(int feedback_code); // Block until a feedback from the tool is received
+  bool blockUntilToolFeedback(int command_code); // Block until a feedback from the tool is received
   void feedbackCallback(const jenga_msgs::EndEffectorFeedback::ConstPtr& msg);
   void probeCallback(const jenga_msgs::Probe::ConstPtr& msg);
   //void rangeCallback(const sensor_msgs::Range::ConstPtr& msg);
