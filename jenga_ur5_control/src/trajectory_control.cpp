@@ -348,7 +348,7 @@ actionlib::SimpleClientGoalState TrajCtrl::driveArmToJengaBlock(int side, int le
   trajectory_msgs::JointTrajectoryPoint joints_up;
   joints_up.positions = config_up;
   joints_up.velocities = zero_vector;
-  joints_up.time_from_start = ros::Duration(2.0);
+  joints_up.time_from_start = ros::Duration(0.0);
   trajectory.points.push_back(joints_up);
   ROS_INFO("Point 1:");
   debugPrintJoints(joints_up.positions);
@@ -826,7 +826,7 @@ control_msgs::FollowJointTrajectoryGoal TrajCtrl::generateTrajectory(int side, t
   trajectory_msgs::JointTrajectoryPoint joints_above;
   joints_above.positions = config_above;
   joints_above.velocities = zero_vector;
-  joints_above.time_from_start = ros::Duration(3.0); // TODO: tune this time
+  joints_above.time_from_start = ros::Duration(5.0); // TODO: tune this time
   trajectory.points.push_back(joints_above);
   ROS_INFO("[generateTrajectory] Point 2:");
   debugPrintJoints(joints_above.positions);
@@ -853,7 +853,7 @@ control_msgs::FollowJointTrajectoryGoal TrajCtrl::generateTrajectory(int side, t
   trajectory_msgs::JointTrajectoryPoint joints_target;
   joints_target.positions = config_target;
   joints_target.velocities = zero_vector;
-  joints_target.time_from_start = ros::Duration(6.0); // TODO: tune this time
+  joints_target.time_from_start = ros::Duration(10.0); // TODO: tune this time
   trajectory.points.push_back(joints_target);
   ROS_INFO("[generateTrajectory] Point 3:");
   debugPrintJoints(joints_target.positions);
@@ -968,7 +968,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeProbingAction()
   // ===> Move 100mm (0.1m) in total
   //tf::Vector3 target_translation = tf_probe.getOrigin();
   //target_translation.setZ( target_translation.getZ() + 0.1 );
-  tf::Transform tf_target( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, 0.125) );
+  tf::Transform tf_target( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, 0.09) );
 
   tf_target = compensateEELinkToProbe(tf_probe * tf_target);
 
@@ -997,7 +997,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeProbingAction()
   joints_target.positions = config_target;
   joints_target.positions[5] = joints_current.positions[5]; // Ensure end effector does not rotate 360 degrees
   joints_target.velocities = zero_vector;
-  joints_target.time_from_start = ros::Duration(5.0); // 100mm in 5 sec = 2cm/sec
+  joints_target.time_from_start = ros::Duration(7.0); // 100mm in 5 sec = 2cm/sec
   trajectory.points.push_back(joints_target);
   ROS_INFO("[executeProbingAction] Point 2:");
   debugPrintJoints(joints_target.positions);
@@ -1074,7 +1074,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGrippingAction(int mode)
     // ===> Move in 50mm + 5mm pull out safty margin = 55mm
     //tf::Vector3 target_translation = tf_gripper.getOrigin();
     //target_translation.setZ( target_translation.getZ() + 0.055 );
-    tf_target = tf::Transform( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, 0.050) );
+    tf_target = tf::Transform( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, 0.05) );
   }
   else // close long
   {
@@ -1116,7 +1116,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGrippingAction(int mode)
   trajectory_msgs::JointTrajectoryPoint joints_target;
   joints_target.positions = config_target;
   joints_target.velocities = zero_vector;
-  joints_target.time_from_start = ros::Duration(2.0);
+  joints_target.time_from_start = ros::Duration(5.0);
   trajectory.points.push_back(joints_target);
   ROS_INFO("[executeGrippingAction] Point 2:");
   debugPrintJoints(joints_target.positions);
@@ -1148,7 +1148,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGrippingAction(int mode)
 
   // Then drive back to start position
   joints_target.positions = config_start;
-  joints_target.time_from_start = ros::Duration(3.0);
+  joints_target.time_from_start = ros::Duration(5.0);
   trajectory.points.push_back(joints_target);
   ROS_INFO("[executeGrippingAction] Return, Point 2:");
   debugPrintJoints(joints_target.positions);
@@ -1179,8 +1179,8 @@ actionlib::SimpleClientGoalState TrajCtrl::executeRangeFindingAction()
   //target_translation.setZ( target_translation.getZ() - 0.050 );
   //tf::Transform tf_right(tf_range_finder.getRotation(), target_translation);
 
-  tf::Transform tf_left( tf::Quaternion::getIdentity(), tf::Vector3(0.025, 0, 0) );
-  tf::Transform tf_right( tf::Quaternion::getIdentity(), tf::Vector3(-0.025, 0, 0) );
+  tf::Transform tf_left( tf::Quaternion::getIdentity(), tf::Vector3(0.035, 0, 0) );
+  tf::Transform tf_right( tf::Quaternion::getIdentity(), tf::Vector3(-0.035, 0, 0) );
 
   tf_left = compensateEELinkToRangeFinder(tf_range_finder * tf_left);
   tf_right = compensateEELinkToRangeFinder(tf_range_finder * tf_right);
@@ -1199,7 +1199,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeRangeFindingAction()
   trajectory_msgs::JointTrajectory trajectory; // Initialize new trajectory
   trajectory.joint_names = UR_JOINT_NAMES_;
   std::vector<double> zero_vector{0, 0, 0, 0, 0, 0};
-  double time_required = 2.0;
+  double time_required = 3.0;
 
   ROS_INFO("configurations:");
   debugPrintJoints(config_start);
@@ -1240,7 +1240,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeRangeFindingAction()
   trajectory_msgs::JointTrajectoryPoint joints_right;
   joints_right.positions = config_right;
   joints_right.velocities = zero_vector;
-  joints_right.time_from_start = ros::Duration(time_required * 5);
+  joints_right.time_from_start = ros::Duration(10.0);
   trajectory.points.push_back(joints_right);
 
   // Signal the tool to start sending range finder data
@@ -1437,7 +1437,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executePlaceBlockAction()
   trajectory_msgs::JointTrajectoryPoint joints_target;
   joints_target.positions = config_target;
   joints_target.velocities = zero_vector;
-  joints_target.time_from_start = ros::Duration(3.0);
+  joints_target.time_from_start = ros::Duration(5.0);
   trajectory.points.push_back(joints_target);
   ROS_INFO("[executePlaceBlockAction] Point 2:");
   debugPrintJoints(joints_target.positions);
@@ -1467,7 +1467,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executePlaceBlockAction()
 
   // Then drive back to start position
   joints_target.positions = config_start;
-  joints_target.time_from_start = ros::Duration(3.0);
+  joints_target.time_from_start = ros::Duration(5.0);
   trajectory.points.push_back(joints_target);
   ROS_INFO("[executePlaceBlockAction] Return, Point 2:");
   debugPrintJoints(joints_target.positions);
@@ -1741,35 +1741,24 @@ void TrajCtrl::debugTestFlow()
 
 void TrajCtrl::debugTestFunctions()
 {
-  /*
-  moveToHomePosition(5);
-  for (int side = 1; side < 4; ++side)
-    for(int level = 5; level < 18; ++level)
-      for(int block = -1; block < 2; ++block)
-      {
-          ROS_FATAL("side%d, level%d, block %d", side, level, block);
-          moveToActionPosition(PROBE, side, level, block);
-          debugBreak();
-          executeProbingAction();
-          debugBreak();
-          moveToHomePosition(side);
-      }
-  */
+
   moveToHomePosition(5);
 
   playing_side_ = 0;
-  playing_level_ = 6;
-  playing_block_ = 0;
+  playing_level_ = 7;
+  playing_block_ = 1;
   moveToActionPosition(RANGE_FINDER, (playing_side_+2)%4, playing_level_, playing_block_);
 
   ROS_WARN("Moved to range finding position. Execute action is next...");
   debugBreak();
 
-  /* Use range finder to find center of the block */
   executeRangeFindingAction();
 
   saveData(range_finder_data_, "range_finder");
   range_finder_data_.clear();
+  //debugBreak();
+  //executeGripChangeAction();
+  //debugBreak();
 }
 
 void TrajCtrl::driveToEveryConfig(std::vector<TrajCtrl::Configuration> configs)
@@ -1856,7 +1845,7 @@ int main(int argc, char** argv){
   TrajCtrl trajectory_control(&nh);
 
   ros::spinOnce();
-  //trajectory_control.debugTestFunctions();
+  trajectory_control.debugTestFunctions();
 
   ROS_INFO("Initialization complete. Spinning...");
 
