@@ -958,7 +958,7 @@ tf::Transform TrajCtrl::compensateEELinkToGripper(tf::Transform transform)
 tf::Transform TrajCtrl::compensateEELinkToRangeFinder(tf::Transform transform)
 {
   tf::Transform ee_link_to_tool0( tf::Quaternion(-0.5, 0.5, -0.5, 0.5) ); 
-  tf::Transform tool0_to_tool_range_finder( tf::Quaternion::getIdentity(), tf::Vector3(0, -0.02942, 0.039234) );
+  tf::Transform tool0_to_tool_range_finder( tf::Quaternion::getIdentity(), tf::Vector3(0, -0.02942, 0.059234) );
 
   tf::Transform ee_link_to_tool_range_finder = ee_link_to_tool0 * tool0_to_tool_range_finder;
 
