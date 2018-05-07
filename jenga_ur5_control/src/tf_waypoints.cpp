@@ -1,12 +1,23 @@
 #include <ros/ros.h>
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
+#include <std_msgs/Bool.h>
+
+bool g_track_ar_tower = true;
+
+void trackingCallback(const std_msgs::Bool::ConstPtr& msg)
+{
+  g_track_ar_tower = msg->data;
+  ROS_INFO("[Waypoints] Tracking = %d", g_track_ar_tower);
+}
 
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "tf_waypoints");
 
   ros::NodeHandle nh;
+
+  ros::Subscriber ar_tower_tracking = nh.subscribe("/jenga/tracking", 3, trackingCallback);
 
   tf::TransformListener tf_listener;
   tf::TransformBroadcaster tf_broadcaster;
@@ -96,10 +107,11 @@ int main(int argc, char** argv)
 
   // Publish the precalculated frames
   ros::Rate rate(10.0);
-  bool ar_tower_location_identified = false;
   while (nh.ok()) 
   {
-    if (!ar_tower_location_identified) 
+    ros::spinOnce();
+
+    if (g_track_ar_tower) 
     {
       // First pass: get the tower location from the ar tag
       try
@@ -118,8 +130,6 @@ int main(int argc, char** argv)
       // Get transform from stamped transform
       tf_tower.setBasis( ar_tower_location.getBasis() );
       tf_tower.setOrigin( ar_tower_location.getOrigin() ); 
-
-      //ar_tower_location_identified = true;
     }
 
     tf_broadcaster.sendTransform(

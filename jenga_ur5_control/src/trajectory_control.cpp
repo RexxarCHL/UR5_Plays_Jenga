@@ -33,11 +33,14 @@ TrajCtrl::TrajCtrl(ros::NodeHandle* nh): nh_(*nh)
 
   ros::spinOnce(); // ensure callbacks work properly
 
+  prev_tf_tower_ = retrieveTransform("roadmap_tower");
+
   ROS_INFO("Connecting to end effector...");
   publishToolCommand(GRIPPER_OPEN_NARROW);
   blockUntilToolFeedback(GRIPPER_OPEN_NARROW);
 
   initializeWaypointsAndCompensations();
+  teachBlockRestConfigurations();
 }
 
 /**
@@ -69,6 +72,7 @@ void TrajCtrl::initializePublisher()
 
   tool_command_publisher_ = nh_.advertise<jenga_msgs::EndEffectorControl>("/tool/command", 3);
   target_result_publisher_ = nh_.advertise<jenga_msgs::JengaTargetResult>("/jenga/result", 1);
+  ar_tower_tracking_publisher_ = nh_.advertise<std_msgs::Bool>("/jenga/tracking", 3);
 }
 
 /**
@@ -123,7 +127,7 @@ void TrajCtrl::initializeServiceClient()
 }
 
 void TrajCtrl::initializeWaypointsAndCompensations()
-{
+{  
   /* Get which side to play on */
   std::array<tf::Transform, 4> tf_side;
   std::array<double, 4> angles, distances;
@@ -244,7 +248,11 @@ void TrajCtrl::initializeWaypointsAndCompensations()
     trajectory.points.clear();
 
     // If the user had not emergency stop and kill the program by now, this configuration is probably OK
+    
     // Store this configuration for future reference
+    auto it = stored_configurations_.find(ABOVE_FRAME_NAMES_[this_side]);
+    if (it != stored_configurations_.end())
+      stored_configurations_.erase(it);
     stored_configurations_.insert( std::pair<std::string, Configuration>(ABOVE_FRAME_NAMES_[this_side], config_above) );
 
     ROS_INFO("Executing range finding action to find positional compensation for the tower");
@@ -427,9 +435,24 @@ void TrajCtrl::jengaTargetCallback(const jenga_msgs::JengaTarget::ConstPtr& targ
   ROS_INFO("Received jenga target block: side%d, level%d, block#%d", 
            target_block->side, target_block->level, target_block->block);
   if(is_busy_) // Block arm driving action from executing until the previous action is done
+  {
+    ROS_ERROR("Jenga target block received when robot is busy!");
     return;
+  }
 
   is_busy_ = true; // Lock future action requests
+
+  if (checkTowerLocation())
+  {
+    char c;
+    ROS_WARN("Tower location seemed to be changed. Do you want to run waypoint initialization?(y/N) ");
+    std::cin >> c;
+    std::cin.ignore(INT_MAX, '\n');
+
+    ros::spinOnce();
+    if (c == 'y' || c == 'Y')
+      initializeWaypointsAndCompensations();
+  }
 
   /* Pick a block */
   // TODO: After modifying the message, pick a block sequentially from the message
@@ -464,10 +487,14 @@ void TrajCtrl::publishTargetResult(jenga_msgs::JengaTarget target_block, bool re
  */
 bool TrajCtrl::playBlock(int side, int level, int block)
 {
+  // Stop tracking ar tower location
+  std_msgs::Bool msg;
+  msg.data = false;
+  ar_tower_tracking_publisher_.publish(msg);
+
   playing_side_ = side;
   playing_level_ = level;
   playing_block_ = block;
-  //previous_tower_location_ = checkTowerLocation(); //TODO
 
   /* Move arm to probing position */
   moveToActionPosition(PROBE, side, level, block);
@@ -481,21 +508,22 @@ bool TrajCtrl::playBlock(int side, int level, int block)
   ROS_WARN("Probing done. Moving back to home position is next...");
   //debugBreak();
 
-  /* Return to up position */
-  moveToHomePosition(side);
-
-  ROS_WARN("Returned home. Branching...");
+  ROS_WARN("Branching...");
   //debugBreak();
 
   /* See if the probing action succeed */
   if (status != actionlib::SimpleClientGoalState::StateEnum::SUCCEEDED)
   {
     ROS_WARN("Action did not succeed. Returning false is next...");
-    debugBreak();
+    ros::Duration(3.0).sleep();
     return false; // Probing failed: the block can not be safely removed.
   }
-  ROS_WARN("Action succeed. Moving to range finding position is next...");
-  //debugBreak();
+
+  ROS_WARN("Action succeed. Returning home...");
+  //debugBreak()
+  /* Return to up position */
+  moveToHomePosition(side);
+
 
   /* Move arm to range finding position on the other side */
   int other_side = (side + 2) % 4;
@@ -560,6 +588,11 @@ bool TrajCtrl::playBlock(int side, int level, int block)
 
   /* Return to up position */
   moveToHomePosition(5);
+
+  // Resume tracking
+  msg.data = true;
+  ar_tower_tracking_publisher_.publish(msg);
+
 
   ROS_WARN("Done! Returning true...");
   debugBreak();
@@ -1002,18 +1035,7 @@ control_msgs::FollowJointTrajectoryGoal TrajCtrl::generateTrajectory(int side, t
   trajectory.joint_names = UR_JOINT_NAMES_;
   std::vector<double> zero_vector{0, 0, 0, 0, 0, 0};
   //double time_required = 4.0; // TODO: Assign different values to different trajectory point
-/*
-  // All actions start with up position first
-  // TODO: Maybe start from a more accessible configuration?
-  std::vector<double> config_up {0, -M_PI/2, 0, -M_PI/2, 0, 0}; // Up position
-  trajectory_msgs::JointTrajectoryPoint joints_up;
-  joints_up.positions = config_up;
-  joints_up.velocities = zero_vector;
-  joints_up.time_from_start = ros::Duration(2.0);
-  trajectory.points.push_back(joints_up);
-  ROS_INFO("Point 1:");
-  debugPrintJoints(joints_up.positions);
-*/
+
   // All actions start with current position
   trajectory_msgs::JointTrajectoryPoint joints_current;
   joints_current.positions = getCurrentJointState().position;
@@ -1028,7 +1050,7 @@ control_msgs::FollowJointTrajectoryGoal TrajCtrl::generateTrajectory(int side, t
   trajectory_msgs::JointTrajectoryPoint joints_above;
   joints_above.positions = config_above;
   joints_above.velocities = zero_vector;
-  joints_above.time_from_start = ros::Duration(5.0); // TODO: tune this time
+  joints_above.time_from_start = ros::Duration(2.0); // TODO: tune this time
   trajectory.points.push_back(joints_above);
   ROS_INFO("[generateTrajectory] Point 2:");
   debugPrintJoints(joints_above.positions);
@@ -1055,7 +1077,7 @@ control_msgs::FollowJointTrajectoryGoal TrajCtrl::generateTrajectory(int side, t
   trajectory_msgs::JointTrajectoryPoint joints_target;
   joints_target.positions = config_target;
   joints_target.velocities = zero_vector;
-  joints_target.time_from_start = ros::Duration(10.0); // TODO: tune this time
+  joints_target.time_from_start = ros::Duration(4.0); // TODO: tune this time
   trajectory.points.push_back(joints_target);
   ROS_INFO("[generateTrajectory] Point 3:");
   debugPrintJoints(joints_target.positions);
@@ -1118,7 +1140,7 @@ control_msgs::FollowJointTrajectoryGoal TrajCtrl::generateHomingTrajectory(int s
     trajectory_msgs::JointTrajectoryPoint joints_above;
     joints_above.positions = config_above;
     joints_above.velocities = zero_vector;
-    joints_above.time_from_start = ros::Duration(3.0); // TODO: tune this time
+    joints_above.time_from_start = ros::Duration(2.0); // TODO: tune this time
     trajectory.points.push_back(joints_above);
     ROS_INFO("[generateHomingTrajectory] Point 2:");
     debugPrintJoints(joints_above.positions);
@@ -1128,7 +1150,7 @@ control_msgs::FollowJointTrajectoryGoal TrajCtrl::generateHomingTrajectory(int s
   trajectory_msgs::JointTrajectoryPoint joints_up;
   joints_up.positions = HOME_CONFIG_;
   joints_up.velocities = zero_vector;
-  joints_up.time_from_start = ros::Duration( (side < 5)? 8.0 : 6.0 );
+  joints_up.time_from_start = ros::Duration( (side < 5)? 4.0 : 3.0 );
   trajectory.points.push_back(joints_up);
   ROS_INFO("[generateHomingTrajectory] Point 3:");
   debugPrintJoints(joints_up.positions);
@@ -1238,7 +1260,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeProbingAction()
 
   // Then drive back to start position
   joints_target.positions = config_start;
-  joints_target.time_from_start = ros::Duration(3.0);
+  joints_target.time_from_start = ros::Duration(1.0);
   trajectory.points.push_back(joints_target);
   ROS_INFO("[executeProbingAction] Return, Point 2:");
   debugPrintJoints(joints_target.positions);
@@ -1269,7 +1291,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGrippingAction(int mode)
     // ===> Move in 50mm + 5mm pull out safty margin = 55mm
     //tf::Vector3 target_translation = tf_gripper.getOrigin();
     //target_translation.setZ( target_translation.getZ() + 0.055 );
-    tf_target = tf::Transform( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, 0.055) );
+    tf_target = tf::Transform( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, 0.06) );
   }
   else // close long
   {
@@ -1311,7 +1333,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGrippingAction(int mode)
   trajectory_msgs::JointTrajectoryPoint joints_target;
   joints_target.positions = config_target;
   joints_target.velocities = zero_vector;
-  joints_target.time_from_start = ros::Duration(5.0);
+  joints_target.time_from_start = ros::Duration(1.0);
   trajectory.points.push_back(joints_target);
   ROS_INFO("[executeGrippingAction] Point 2:");
   debugPrintJoints(joints_target.positions);
@@ -1343,7 +1365,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGrippingAction(int mode)
 
   // Then drive back to start position
   joints_target.positions = config_start;
-  joints_target.time_from_start = ros::Duration(5.0);
+  joints_target.time_from_start = ros::Duration(1.5);
   trajectory.points.push_back(joints_target);
   ROS_INFO("[executeGrippingAction] Return, Point 2:");
   debugPrintJoints(joints_target.positions);
@@ -1409,7 +1431,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeRangeFindingAction(bool mode) 
   trajectory_msgs::JointTrajectory trajectory; // Initialize new trajectory
   trajectory.joint_names = UR_JOINT_NAMES_;
   std::vector<double> zero_vector{0, 0, 0, 0, 0, 0};
-  double time_required = 3.0;
+  double time_required = 0.5;
 
   ROS_INFO("configurations:");
   debugPrintJoints(config_start);
@@ -1553,7 +1575,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGripChangeAction()
   trajectory_msgs::JointTrajectoryPoint joints_drop;
   joints_drop.positions = config_drop;
   joints_drop.velocities = zero_vector;
-  joints_drop.time_from_start = ros::Duration(6.0);
+  joints_drop.time_from_start = ros::Duration(3.0);
   trajectory.points.push_back(joints_drop);
 
   // Send the trajectory
@@ -1584,13 +1606,13 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGripChangeAction()
   trajectory_msgs::JointTrajectoryPoint joints_pickup;
   joints_pickup.positions = config_pickup;
   joints_pickup.velocities = zero_vector;
-  joints_pickup.time_from_start = ros::Duration(5.0);
+  joints_pickup.time_from_start = ros::Duration(1.5);
   trajectory.points.push_back(joints_pickup);
 
   trajectory_msgs::JointTrajectoryPoint joints_rest;
   joints_rest.positions = config_rest;
   joints_rest.velocities = zero_vector;
-  joints_rest.time_from_start = ros::Duration(10.0);
+  joints_rest.time_from_start = ros::Duration(2.5);
   trajectory.points.push_back(joints_rest);
 
   // Send the trajectory
@@ -1614,7 +1636,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGripChangeAction()
   trajectory.points.push_back(joints_current);
 
   // Move to the position above the block
-  joints_pickup.time_from_start = ros::Duration(5.0);
+  joints_pickup.time_from_start = ros::Duration(1.5);
   trajectory.points.push_back(joints_pickup);
 
   goal.trajectory = trajectory; 
@@ -1668,7 +1690,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executePlaceBlockAction()
   trajectory_msgs::JointTrajectoryPoint joints_target;
   joints_target.positions = config_target;
   joints_target.velocities = zero_vector;
-  joints_target.time_from_start = ros::Duration(5.0);
+  joints_target.time_from_start = ros::Duration(1.0);
   trajectory.points.push_back(joints_target);
   ROS_INFO("[executePlaceBlockAction] Point 2:");
   debugPrintJoints(joints_target.positions);
@@ -1698,7 +1720,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executePlaceBlockAction()
 
   // Then drive back to start position
   joints_target.positions = config_start;
-  joints_target.time_from_start = ros::Duration(5.0);
+  joints_target.time_from_start = ros::Duration(1.0);
   trajectory.points.push_back(joints_target);
   ROS_INFO("[executePlaceBlockAction] Return, Point 2:");
   debugPrintJoints(joints_target.positions);
@@ -1773,7 +1795,7 @@ actionlib::SimpleClientGoalState TrajCtrl::moveToPlaceBlockPosition()
   else
   {
     tf::Quaternion q; q.setRPY(0, 0, M_PI/2); // Rotate +z 90 degrees
-    tf_target = tf::Transform( q, tf::Vector3(block * 0.025, 0, 0) + compensation_result_[playing_side_]);
+    tf_target = tf::Transform( q, tf::Vector3(block * 0.025, 0, 0));// + compensation_result_[playing_side_]);
   }
 
   tf_target = compensateEELinkToGripper(tf_direct_above * tf_target);
@@ -1803,7 +1825,7 @@ actionlib::SimpleClientGoalState TrajCtrl::moveToPlaceBlockPosition()
   trajectory_msgs::JointTrajectoryPoint joints_direct_above;
   joints_direct_above.positions = config_direct_above;
   joints_direct_above.velocities = zero_vector;
-  joints_direct_above.time_from_start = ros::Duration(5.0); // Start immediately
+  joints_direct_above.time_from_start = ros::Duration(2.5); // Start immediately
   trajectory.points.push_back(joints_direct_above);
   ROS_INFO("[executePlaceBlockAction] Point 1:");
   debugPrintJoints(joints_direct_above.positions);
@@ -1812,7 +1834,7 @@ actionlib::SimpleClientGoalState TrajCtrl::moveToPlaceBlockPosition()
   trajectory_msgs::JointTrajectoryPoint joints_target;
   joints_target.positions = config_target;
   joints_target.velocities = zero_vector;
-  joints_target.time_from_start = ros::Duration(10.0);
+  joints_target.time_from_start = ros::Duration(3.5);
   trajectory.points.push_back(joints_target);
   ROS_INFO("[executePlaceBlockAction] Point 2:");
   debugPrintJoints(joints_target.positions);
@@ -1879,6 +1901,30 @@ void TrajCtrl::checkRobotInHomeConfig()
       break;
     }
   }
+}
+
+bool TrajCtrl::checkTowerLocation()
+{
+  ROS_INFO("Checking if tower location is drastically changed");
+  tf::Transform tf_tower = retrieveTransform("roadmap_tower");
+
+  tf::Vector3 diff_t = prev_tf_tower_.getOrigin() - tf_tower.getOrigin();
+  tf::Quaternion diff_q = prev_tf_tower_.getRotation() - tf_tower.getRotation();
+
+  prev_tf_tower_ = tf_tower;
+
+  const double MAX_Q_DIFF = 0.005;
+  const double MAX_P_DIFF = 0.005;
+
+  if (diff_q.length() > MAX_Q_DIFF || diff_t.length() > MAX_P_DIFF)
+  {
+    // Pose drastically changed; reset counter to learn the new positions
+    ROS_WARN("TOWER POSE CHANGED!");
+    ROS_WARN("Difference: %f, %f", diff_q.length(), diff_t.length());
+    return true;
+  }
+
+  return false;
 }
 
 void TrajCtrl::publishToolCommand(int command_code)
@@ -2169,14 +2215,10 @@ void TrajCtrl::debugPrintJoints(TrajCtrl::Configuration joints)
 
 void TrajCtrl::debugBreak()
 {
-  #ifdef DEBUG
   char c;
   ROS_WARN("<<Press any key to continue>>");
   std::cin >> c;
   ros::spinOnce();
-  #endif
-
-  ros::Duration(3.0).sleep();
 }
 
 void TrajCtrl::debugTestFlow()

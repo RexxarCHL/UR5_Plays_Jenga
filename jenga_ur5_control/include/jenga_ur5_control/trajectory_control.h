@@ -17,7 +17,7 @@
 #include <trajectory_msgs/JointTrajectory.h>
 #include <trajectory_msgs/JointTrajectoryPoint.h>
 #include <sensor_msgs/JointState.h>
-#include <sensor_msgs/Range.h>
+#include <std_msgs/Bool.h>
 #include <jenga_msgs/EndEffectorControl.h>
 #include <jenga_msgs/EndEffectorFeedback.h>
 #include <jenga_msgs/Probe.h>
@@ -139,6 +139,7 @@ private:
   ros::NodeHandle nh_;
   ros::Publisher tool_command_publisher_;
   ros::Publisher target_result_publisher_;
+  ros::Publisher ar_tower_tracking_publisher_;
   ros::Subscriber tool_feedback_subscriber_;
   ros::Subscriber tool_range_subscriber_;
   ros::Subscriber tool_probe_subscriber_;
@@ -155,15 +156,15 @@ private:
   //jenga_msgs::EndEffectorControl tool_command_;
 
   // Game state
-  tf::Transform previous_tower_location_;
   int current_level_; // The current top level count
   int playing_side_;
   int playing_block_;
   int playing_level_;
   std::vector<int> top_status_; // The current block occupancy on top of the tower
   bool top_orientation_; // The current correct orientation to place a block
+  tf::Transform prev_tf_tower_;
   int checkGameState(); // Check and update game state. Return first empty block slot
-
+  bool checkTowerLocation();
 
   bool is_busy_;
   bool is_probing_;
@@ -193,8 +194,9 @@ private:
   void initializeActionClient();
   // Initialize inverse kinematics service client
   void initializeServiceClient();
-
+  // Use range finder to find the middle of the tower, and the distance to the tower
   void initializeWaypointsAndCompensations();
+  // Drive to drop block location and let the user do minor adjustments
   void teachBlockRestConfigurations();
 
 
