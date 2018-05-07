@@ -195,6 +195,7 @@ private:
   void initializeServiceClient();
 
   void initializeWaypointsAndCompensations();
+  void teachBlockRestConfigurations();
 
 
   /**

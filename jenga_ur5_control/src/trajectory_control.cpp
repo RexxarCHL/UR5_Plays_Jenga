@@ -256,9 +256,13 @@ void TrajCtrl::initializeWaypointsAndCompensations()
     moveToHomePosition(this_side);
   }
   
-  ROS_INFO("Checking drop configuration...");
+  ROS_INFO("Waypoint and compensations initialized");
+  //std::fill(compensation_result_.begin(), compensation_result_.end(), tf::Vector3(0, 0, 0));
+}
 
-  /* Retrieve necessary transformations and calculate necessary parameters */
+void TrajCtrl::teachBlockRestConfigurations()
+{
+  ROS_INFO("Checking drop configuration...");
   tf::Transform tf_block_drop = retrieveTransform("roadmap_block_drop");
   tf::Transform tf_block_pickup = retrieveTransform("roadmap_block_pickup");
   tf::Transform tf_block_rest = retrieveTransform("roadmap_block_rest");
@@ -267,17 +271,22 @@ void TrajCtrl::initializeWaypointsAndCompensations()
   tf_block_pickup = compensateEELinkToGripper(tf_block_pickup);
   tf_block_rest = compensateEELinkToGripper(tf_block_rest);
 
-  tf_broadcaster_.sendTransform(
-      tf::StampedTransform(tf_block_drop, ros::Time::now(), "base_link", "tf_block_drop_ee_link"));
-
-  /* Move from current position (assumed at home) to drop location */
-  // Get a suitable configuration for target transform
+  // Get a suitable configuration for target transforms
   TrajCtrl::Configuration config_pickup = eliminateConfigurations(getInverseConfigurations(tf_block_pickup), tf_block_pickup);
   TrajCtrl::Configuration config_rest = pickMinimumEffortConfiguration(getInverseConfigurations(tf_block_rest), config_pickup);
   TrajCtrl::Configuration config_drop = eliminateConfigurations(getInverseConfigurations(tf_block_drop), tf_block_drop);
 
+  // Initialize new trajectory
+  trajectory_msgs::JointTrajectory trajectory;
+  trajectory.joint_names = UR_JOINT_NAMES_;
+  std::vector<double> zero_vector{0, 0, 0, 0, 0, 0};
+  control_msgs::FollowJointTrajectoryGoal goal;
+
   // Start with current position
+  trajectory_msgs::JointTrajectoryPoint joints_current;
   joints_current.positions = getCurrentJointState().position;
+  joints_current.velocities = zero_vector;
+  joints_current.time_from_start = ros::Duration(0.0);
   trajectory.points.push_back(joints_current);
 
   // Move to drop location
@@ -378,9 +387,6 @@ void TrajCtrl::initializeWaypointsAndCompensations()
 
   ROS_INFO("Moving back home");
   moveToHomePosition(5);
-  
-  ROS_INFO("Waypoint and compensations initialized");
-  //std::fill(compensation_result_.begin(), compensation_result_.end(), tf::Vector3(0, 0, 0));
 }
 
 /**
@@ -2169,7 +2175,7 @@ void TrajCtrl::debugBreak()
   std::cin >> c;
   ros::spinOnce();
   #endif
-  
+
   ros::Duration(3.0).sleep();
 }
 
