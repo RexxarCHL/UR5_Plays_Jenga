@@ -5,7 +5,6 @@
  * Date Created: 04/08/2018
  */
 #include "jenga_ur5_control/trajectory_control.h"
-#define DEBUG
 
 /**
  * Constructor
@@ -295,6 +294,7 @@ void TrajCtrl::initializeWaypointsAndCompensations()
 
   ROS_INFO("You can manually move the robot to an appropriate drop position");
   debugBreak();
+  ros::spinOnce();
   config_drop = getCurrentJointState().position;
 
   /* Open gripper to drop the block */
@@ -343,6 +343,8 @@ void TrajCtrl::initializeWaypointsAndCompensations()
 
   ROS_INFO("You can manually move the robot to an appropriate pickup position");
   debugBreak();
+  ros::spinOnce();
+  config_rest = getCurrentJointState().position;
 
   /* Move to the position above the dropped block */
   // Reset the trajectory points
@@ -378,7 +380,7 @@ void TrajCtrl::initializeWaypointsAndCompensations()
   moveToHomePosition(5);
   
   ROS_INFO("Waypoint and compensations initialized");
-  std::fill(compensation_result_.begin(), compensation_result_.end(), tf::Vector3(0, 0, 0));
+  //std::fill(compensation_result_.begin(), compensation_result_.end(), tf::Vector3(0, 0, 0));
 }
 
 /**
@@ -770,7 +772,7 @@ TrajCtrl::Configuration TrajCtrl::checkStoredConfigurations(std::string frame_na
   }
 
   ROS_WARN("No configuration for %s found. Calculating...", frame_name.c_str());
-  debugBreak();
+  //debugBreak();
 
   /* Lookup transform on the route */
   tf::Transform tf_target = compensateEELinkToGripper(retrieveTransform(frame_name));
@@ -928,7 +930,7 @@ tf::Transform TrajCtrl::compensateEELinkToRangeFinder(tf::Transform transform)
 tf::Transform TrajCtrl::compensateEELinkToProbe(tf::Transform transform)
 {
   tf::Transform ee_link_to_tool0( tf::Quaternion(-0.5, 0.5, -0.5, 0.5) ); 
-  tf::Transform tool0_to_tool_probe( tf::Quaternion(0.0, M_PI/4, 0.0, M_PI/4), tf::Vector3(0.0795, -0.003, 0.016146) );
+  tf::Transform tool0_to_tool_probe( tf::Quaternion(0.0, M_PI/4, 0.0, M_PI/4), tf::Vector3(0.0795, -0.003, 0.026146) );
 
   tf::Transform ee_link_to_tool_probe = ee_link_to_tool0 * tool0_to_tool_probe;
 
@@ -1153,8 +1155,8 @@ actionlib::SimpleClientGoalState TrajCtrl::executeProbingAction()
   //tf::Vector3 target_translation = tf_probe.getOrigin();
   //target_translation.setZ( target_translation.getZ() + 0.1 );
   //tf::Transform tf_target( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, 0.09) );
-  tf::Transform tf_target( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, distance_to_tower_[playing_side_] + 0.025) );
-  ROS_INFO("distance = %f", distance_to_tower_[playing_side_] + 0.075);
+  tf::Transform tf_target( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, distance_to_tower_[playing_side_] + 0.05) );
+  ROS_INFO("distance = %f", distance_to_tower_[playing_side_] + 0.05);
   //debugBreak();
 
   tf_target = compensateEELinkToProbe(tf_probe * tf_target);
@@ -1184,7 +1186,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeProbingAction()
   joints_target.positions = config_target;
   joints_target.positions[5] = joints_current.positions[5]; // Ensure end effector does not rotate 360 degrees
   joints_target.velocities = zero_vector;
-  joints_target.time_from_start = ros::Duration(7.0); // 100mm in 5 sec = 2cm/sec
+  joints_target.time_from_start = ros::Duration(5.0); // 100mm in 5 sec = 2cm/sec
   trajectory.points.push_back(joints_target);
   ROS_INFO("[executeProbingAction] Point 2:");
   debugPrintJoints(joints_target.positions);
@@ -1261,7 +1263,7 @@ actionlib::SimpleClientGoalState TrajCtrl::executeGrippingAction(int mode)
     // ===> Move in 50mm + 5mm pull out safty margin = 55mm
     //tf::Vector3 target_translation = tf_gripper.getOrigin();
     //target_translation.setZ( target_translation.getZ() + 0.055 );
-    tf_target = tf::Transform( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, 0.05) );
+    tf_target = tf::Transform( tf::Quaternion::getIdentity(), tf::Vector3(0, 0, 0.055) );
   }
   else // close long
   {
@@ -1761,7 +1763,7 @@ actionlib::SimpleClientGoalState TrajCtrl::moveToPlaceBlockPosition()
   if (top_orientation_)
     tf_target = tf::Transform( 
         tf::Quaternion::getIdentity(), 
-        tf::Vector3(0, block * 0.025, 0) + compensation_result_[playing_side_]);
+        tf::Vector3(compensation_result_[playing_side_].getY(), block * 0.025, 0));
   else
   {
     tf::Quaternion q; q.setRPY(0, 0, M_PI/2); // Rotate +z 90 degrees
@@ -2166,8 +2168,9 @@ void TrajCtrl::debugBreak()
   ROS_WARN("<<Press any key to continue>>");
   std::cin >> c;
   ros::spinOnce();
-  //ros::Duration(3.0).sleep();
   #endif
+  
+  ros::Duration(3.0).sleep();
 }
 
 void TrajCtrl::debugTestFlow()
@@ -2283,9 +2286,10 @@ int main(int argc, char** argv){
   TrajCtrl trajectory_control(&nh);
 
   ros::spinOnce();
-  trajectory_control.debugTestFunctions();
+  //trajectory_control.debugTestFunctions();
 
   ROS_INFO("Initialization complete. Spinning...");
+  ROS_INFO("You can run the agent now.");
 
   ros::spin(); // Let callbacks do the work
 
