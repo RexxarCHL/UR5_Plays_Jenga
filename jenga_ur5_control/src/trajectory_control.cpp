@@ -264,6 +264,8 @@ void TrajCtrl::initializeWaypointsAndCompensations()
     moveToHomePosition(this_side);
   }
   
+
+  initial_compensation_result_ = compensation_result_;
   ROS_INFO("Waypoint and compensations initialized");
   //std::fill(compensation_result_.begin(), compensation_result_.end(), tf::Vector3(0, 0, 0));
 }
@@ -958,7 +960,7 @@ tf::Transform TrajCtrl::compensateEELinkToGripper(tf::Transform transform)
 tf::Transform TrajCtrl::compensateEELinkToRangeFinder(tf::Transform transform)
 {
   tf::Transform ee_link_to_tool0( tf::Quaternion(-0.5, 0.5, -0.5, 0.5) ); 
-  tf::Transform tool0_to_tool_range_finder( tf::Quaternion::getIdentity(), tf::Vector3(0, -0.02942, 0.059234) );
+  tf::Transform tool0_to_tool_range_finder( tf::Quaternion::getIdentity(), tf::Vector3(0, -0.02942, 0.039234) );
 
   tf::Transform ee_link_to_tool_range_finder = ee_link_to_tool0 * tool0_to_tool_range_finder;
 
@@ -1730,9 +1732,9 @@ actionlib::SimpleClientGoalState TrajCtrl::executePlaceBlockAction()
   actionlib::SimpleClientGoalState status = executeTrajectoryGoal(goal);
 
   // Reset tool opening size
-  publishToolCommand(GRIPPER_OPEN_NARROW);
-  feedback_result = blockUntilToolFeedback(GRIPPER_OPEN_NARROW);
-  ROS_INFO("[executePlaceBlockAction] Tool feedback: %d", feedback_result);
+  //publishToolCommand(GRIPPER_OPEN_NARROW);
+  //feedback_result = blockUntilToolFeedback(GRIPPER_OPEN_NARROW);
+  //ROS_INFO("[executePlaceBlockAction] Tool feedback: %d", feedback_result);
 
   ROS_INFO("Placing action done, with status %s", status.toString().c_str() );
   return status;
@@ -2129,6 +2131,9 @@ void TrajCtrl::calculateCompensation()
   mid_point -= y_bias;
   ROS_INFO("Compensation: %f", mid_point);
   compensation_result_[playing_side_] = tf::Vector3(mid_point, 0.0, 0.0);
+
+  if(mid_point > 0.01)
+    compensation_result_[playing_side_] = initial_compensation_result_[playing_side_];
 
 
   /* Clean up */

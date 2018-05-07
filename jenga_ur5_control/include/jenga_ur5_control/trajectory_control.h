@@ -173,6 +173,7 @@ private:
   //tf::Transform tf_expected_;
   std::map<std::string, Configuration> stored_configurations_;
   std::array<tf::Vector3, 4> compensation_result_;
+  std::array<tf::Vector3, 4> initial_compensation_result_;
   std::set<int> error_indices_;
   std::array<double, 4> distance_to_tower_;
 
